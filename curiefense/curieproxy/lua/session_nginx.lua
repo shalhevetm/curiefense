@@ -242,39 +242,44 @@ function _jwt_parse (handle, namespace_info)
     local header_name = namespace_info["headers"]
     local headers = get_request_headers(handle)
 
-    local jwt_token = headers[header_name]
+    if headers then
+        local jwt_token = headers[header_name]
 
-    if jwt_token then
-        local parts = utils.split(jwt_token, ".")
-        local header, payload, sig = utils.unpack(parts)
-
-        -- verify a valid structure of 3 elements
-        if header and payload and sig then
-            local json_payload = ngx.decode_base64(payload)
-            local data_table = cjson.decode(json_payload)
-            return data_table
+        if jwt_token then
+            local parts = utils.split(jwt_token, ".")
+            if parts and type(parts) == "table" then
+                local header, payload, sig = utils.unpack(parts)
+                -- verify a valid structure of 3 elements
+                if header and payload and sig then
+                    local json_payload = ngx.decode_base64(payload)
+                    local data_table = cjson.decode(json_payload)
+                    return data_table
+                end
+            end
         end
     end
 end
 
+-- {"jwt": {"headers": "auth-token-id"} }
+local supported_plugins = {
+    [ "jwt" ] = _jwt_parse
+}
+
 function session_rust_nginx.load_plugins_data(handle, secpol_plugins)
-    -- {"jwt": {"headers": "auth-token-id"} }
-    local supported_plugins = {
-        [ "jwt" ] = _jwt_parse
-    }
-
-    local plugins_data = {}
-
+    local plugins_config = {}
     for name, func in pairs(supported_plugins) do
-        local data = func(handle, supported_plugins[name])
-        if data then
-            plugins_data [name] = data
+        local namespace_info = secpol_plugins[name]
+        if namespace_info then
+            local pi_data = func(handle, namespace_info)
+            if pi_data then
+                plugins_config [name] = pi_data
+            end
         end
     end
 
     -- check if table is not empty
-    if next(plugins_data) ~= nil then
-        return plugins_data
+    if next(plugins_config) ~= nil then
+        return plugins_config
     else
         return nil
     end
