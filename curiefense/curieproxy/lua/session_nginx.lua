@@ -77,6 +77,7 @@ local function redis_connect(handle)
 end
 
 function get_request_headers(handle)
+
     local rheaders, err = handle.req.get_headers()
     if err == "truncated" then
         handle.log(handle.ERR, "truncated headers: " .. err)
@@ -103,7 +104,8 @@ function session_rust_nginx.inspect(handle, loglevel, secpolid)
     --   * method : the HTTP verb
     --   * authority : optionally, the HTTP2 authority field
     local meta = { path=handle.var.request_uri, method=handle.req.get_method(), authority=nil }
-    local params = {loglevel=loglevel, meta=meta, headers=headers, body=body_content, ip=ip_str, hops=HOPS}
+    local params = {loglevel=loglevel, meta=meta, headers=headers, body=body_content,
+            ip=handle.var.remote_addr, hops=HOPS, plugins=plugins}
 
     if secpolid then
         params['secpolid'] = secpolid
@@ -237,6 +239,13 @@ function session_rust_nginx.log(handle, extra)
     handle.var.request_map = res:request_map(extra)
 end
 
+--[[
+{ "plugins":
+  { "jwt":
+    { "headers": "auth-token-id"}
+  }
+}
+]]--
 -- implementation of extracting jwt header
 function _jwt_parse (handle, namespace_info)
     local header_name = namespace_info["headers"]
@@ -284,5 +293,6 @@ function session_rust_nginx.load_plugins_data(handle, secpol_plugins)
         return nil
     end
 end
+
 
 return session_rust_nginx
