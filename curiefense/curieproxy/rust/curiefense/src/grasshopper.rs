@@ -33,8 +33,8 @@ pub enum GHMode {
 
 #[derive(Serialize, Debug)]
 pub struct GHQuery<'t> {
-    pub headers: &'t RequestField,
-    pub cookies: &'t RequestField,
+    pub headers: HashMap<&'t str, &'t str>,
+    pub cookies: HashMap<&'t str, &'t str>,
     pub ip: &'t str,
     pub protocol: &'t str,
 }

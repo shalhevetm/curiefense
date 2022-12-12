@@ -38,8 +38,8 @@ use crate::config::hostmap::SecurityPolicy;
 fn challenge_verified<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo, logs: &mut Logs) -> GHResponse {
     match gh.is_human(
         GHQuery {
-            headers: &reqinfo.headers,
-            cookies: &reqinfo.cookies,
+            headers: reqinfo.headers.as_map(),
+            cookies: reqinfo.cookies.as_map(),
             ip: &reqinfo.rinfo.geoip.ipstr,
             protocol: "TODO",
         },
