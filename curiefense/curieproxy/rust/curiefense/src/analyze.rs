@@ -6,7 +6,7 @@ use crate::config::flow::FlowMap;
 use crate::config::HSDB;
 use crate::contentfilter::{content_filter_check, masking};
 use crate::flow::{flow_build_query, flow_info, flow_process, flow_resolve_query, FlowCheck, FlowResult};
-use crate::grasshopper::{challenge_phase01, challenge_phase02, Grasshopper};
+use crate::grasshopper::{challenge_phase01, challenge_phase02, Grasshopper, PrecisionLevel};
 use crate::interface::stats::{BStageMapped, StatsCollect};
 use crate::interface::{
     merge_decisions, AclStage, AnalyzeResult, BDecision, BlockReason, Decision, Location, SimpleDecision, Tags,
@@ -24,7 +24,7 @@ pub enum CfRulesArg<'t> {
 pub struct APhase0 {
     pub flows: FlowMap,
     pub globalfilter_dec: SimpleDecision,
-    pub is_human: bool,
+    pub precision_level: PrecisionLevel,
     pub itags: Tags,
     pub reqinfo: RequestInfo,
     pub stats: StatsCollect<BStageMapped>,
@@ -32,7 +32,7 @@ pub struct APhase0 {
 
 #[derive(Clone)]
 pub struct AnalysisInfo {
-    is_human: bool,
+    precision_level: PrecisionLevel,
     p0_decision: Decision,
     reqinfo: RequestInfo,
     stats: StatsCollect<BStageMapped>,
@@ -72,7 +72,7 @@ pub fn analyze_init<GH: Grasshopper>(logs: &mut Logs, mgh: Option<&GH>, p0: APha
     let mut tags = p0.itags;
     let reqinfo = p0.reqinfo;
     let securitypolicy = &reqinfo.rinfo.secpolicy;
-    let is_human = p0.is_human;
+    let precision_level = p0.precision_level;
     let globalfilter_dec = p0.globalfilter_dec;
 
     tags.insert_qualified("securitypolicy", &securitypolicy.policy.name, Location::Request);
@@ -96,7 +96,7 @@ pub fn analyze_init<GH: Grasshopper>(logs: &mut Logs, mgh: Option<&GH>, p0: APha
             let reason = BlockReason::body_malformed(rr);
             // we expect the body to be properly decoded
             let decision = securitypolicy.content_filter_profile.action.to_decision(
-                is_human,
+                precision_level,
                 mgh,
                 &reqinfo,
                 &mut tags,
@@ -127,7 +127,7 @@ pub fn analyze_init<GH: Grasshopper>(logs: &mut Logs, mgh: Option<&GH>, p0: APha
 
     let decision = if let SimpleDecision::Action(action, reason) = globalfilter_dec {
         logs.debug(|| format!("Global filter decision {:?}", reason));
-        let decision = action.to_decision(is_human, mgh, &reqinfo, &mut tags, reason);
+        let decision = action.to_decision(precision_level, mgh, &reqinfo, &mut tags, reason);
         if decision.is_final() {
             return InitResult::Res(AnalyzeResult {
                 decision,
@@ -146,7 +146,7 @@ pub fn analyze_init<GH: Grasshopper>(logs: &mut Logs, mgh: Option<&GH>, p0: APha
     let limit_checks = limit_info(logs, &reqinfo, &securitypolicy.limits, &tags);
     let flow_checks = flow_info(logs, &p0.flows, &reqinfo, &tags);
     let info = AnalysisInfo {
-        is_human,
+        precision_level,
         p0_decision: decision,
         reqinfo,
         stats,
@@ -221,7 +221,7 @@ pub fn analyze_finish<GH: Grasshopper>(
     let mut tags = info.tags;
     let mut cumulated_decision = info.p0_decision;
 
-    let is_human = info.is_human;
+    let precision_level = info.precision_level;
     let reqinfo = info.reqinfo;
     let secpol = &reqinfo.rinfo.secpolicy;
 
@@ -229,7 +229,7 @@ pub fn analyze_finish<GH: Grasshopper>(
     let (limit_check, stats) = limit_process(stats, 0, &p2.limits, &mut tags);
 
     if let SimpleDecision::Action(action, curbrs) = limit_check {
-        let limit_decision = action.to_decision(is_human, mgh, &reqinfo, &mut tags, curbrs);
+        let limit_decision = action.to_decision(precision_level, mgh, &reqinfo, &mut tags, curbrs);
         cumulated_decision = merge_decisions(cumulated_decision, limit_decision);
         if cumulated_decision.is_final() {
             return AnalyzeResult {
@@ -245,7 +245,7 @@ pub fn analyze_finish<GH: Grasshopper>(
     let acl_result = check_acl(&tags, &secpol.acl_profile);
     logs.debug(|| format!("ACL result: {}", acl_result));
 
-    let acl_decision = acl_result.decision(is_human);
+    let acl_decision = acl_result.decision(precision_level.is_human());
     let stats = stats.acl(if acl_decision.is_some() { 1 } else { 0 });
     if let Some(decision) = acl_decision {
         let bypass = decision.stage == AclStage::Bypass;
@@ -284,7 +284,7 @@ pub fn analyze_finish<GH: Grasshopper>(
             secpol
                 .acl_profile
                 .action
-                .to_decision(is_human, mgh, &reqinfo, tags, Vec::new())
+                .to_decision(precision_level, mgh, &reqinfo, tags, Vec::new())
         };
 
         // Send challenge, even if the acl is inactive in sec_pol.
@@ -365,10 +365,11 @@ pub fn analyze_finish<GH: Grasshopper>(
                 })
                 .collect();
             if cfblock.blocking {
-                let mut dec = secpol
-                    .content_filter_profile
-                    .action
-                    .to_decision(is_human, mgh, &reqinfo, &mut tags, br);
+                let mut dec =
+                    secpol
+                        .content_filter_profile
+                        .action
+                        .to_decision(precision_level, mgh, &reqinfo, &mut tags, br);
                 if let Some(mut action) = dec.maction.as_mut() {
                     action.block_mode &= secpol.content_filter_active;
                 }

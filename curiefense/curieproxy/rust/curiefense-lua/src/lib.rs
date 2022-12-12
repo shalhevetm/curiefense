@@ -6,12 +6,17 @@ use curiefense::analyze::APhase2;
 use curiefense::analyze::CfRulesArg;
 use curiefense::analyze::InitResult;
 use curiefense::grasshopper::DynGrasshopper;
+use curiefense::grasshopper::GHMode;
 use curiefense::grasshopper::Grasshopper;
+use curiefense::grasshopper::InputData;
+use curiefense::grasshopper::OutputData;
+use curiefense::grasshopper::PrecisionLevel;
 use curiefense::inspect_generic_request_map;
 use curiefense::inspect_generic_request_map_init;
 use curiefense::interface::aggregator::aggregated_values_block;
 use curiefense::logs::LogLevel;
 use curiefense::logs::Logs;
+use curiefense::requestfields::RequestField;
 use curiefense::utils::RequestMeta;
 use curiefense::utils::{InspectionResult, RawRequest};
 use mlua::prelude::*;
@@ -34,7 +39,7 @@ struct LuaArgs<'l> {
     str_ip: String,
     loglevel: LogLevel,
     secpolid: Option<String>,
-    humanity: Option<bool>,
+    humanity: PrecisionLevel,
     configpath: String,
     plugins: HashMap<String, String>,
 }
@@ -104,9 +109,18 @@ fn lua_convert_args<'l>(lua: &'l Lua, args: LuaTable<'l>) -> Result<LuaArgs<'l>,
         None => str_ip,
         Some(hops) => curiefense::incremental::extract_ip(hops, &headers).unwrap_or(str_ip),
     };
-    let humanity = match FromLua::from_lua(vhumanity, lua) {
+    let shumanity: Option<String> = match FromLua::from_lua(vhumanity, lua) {
         Err(rr) => return Err(format!("Could not convert the humanity argument: {}", rr)),
         Ok(h) => h,
+    };
+    let humanity = match shumanity.as_deref() {
+        Some("active") => PrecisionLevel::Active,
+        Some("passive") => PrecisionLevel::Passive,
+        Some("interactive") => PrecisionLevel::Interactive,
+        Some("mobileSdk") => PrecisionLevel::MobileSdk,
+        Some("invalid") => PrecisionLevel::Invalid,
+        None => PrecisionLevel::Invalid,
+        Some(x) => return Err(format!("Invalid humanity precision level {}", x)),
     };
     let configpath: Option<String> = match FromLua::from_lua(vconfigpath, lua) {
         Err(rr) => return Err(format!("Could not convert the config path argument: {}", rr)),
@@ -221,24 +235,24 @@ fn lua_inspect_process(lua: &Lua, args: (LuaValue, LuaValue, LuaValue)) -> LuaRe
 }
 
 struct DummyGrasshopper {
-    humanity: bool,
+    humanity: PrecisionLevel,
 }
 
 impl Grasshopper for DummyGrasshopper {
-    fn js_app(&self) -> Option<std::string::String> {
-        None
+    fn is_human(&self, _input: InputData, _mode: GHMode) -> Result<OutputData, String> {
+        Ok(OutputData {
+            precision_level: self.humanity,
+            str_response: "empty".to_string(),
+            headers: HashMap::new(),
+        })
     }
-    fn js_bio(&self) -> Option<std::string::String> {
-        None
-    }
-    fn parse_rbzid(&self, _: &str, _: &str) -> Option<bool> {
-        Some(self.humanity)
-    }
-    fn gen_new_seed(&self, _: &str) -> Option<std::string::String> {
-        None
-    }
-    fn verify_workproof(&self, _: &str, _: &str) -> Option<std::string::String> {
-        Some("ok".into())
+
+    fn verify_challenge(&self, _headers: &RequestField) -> Result<String, String> {
+        if self.humanity == PrecisionLevel::Invalid {
+            Err("Bad".to_string())
+        } else {
+            Ok("OK".to_string())
+        }
     }
 }
 
@@ -250,7 +264,7 @@ fn lua_test_inspect_request(lua: &Lua, args: LuaTable) -> LuaResult<LuaInspectio
     match lua_convert_args(lua, args) {
         Ok(lua_args) => {
             let gh = DummyGrasshopper {
-                humanity: lua_args.humanity.unwrap_or(false),
+                humanity: lua_args.humanity,
             };
             let res = inspect_request(
                 &lua_args.configpath,

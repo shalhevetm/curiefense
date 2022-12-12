@@ -24,7 +24,7 @@ use analyze::{APhase0, CfRulesArg};
 use body::body_too_large;
 use config::virtualtags::VirtualTags;
 use config::with_config;
-use grasshopper::Grasshopper;
+use grasshopper::{Grasshopper, PrecisionLevel};
 use interface::stats::{SecpolStats, Stats, StatsCollect};
 use interface::{Action, ActionType, AnalyzeResult, BlockReason, Decision, Location, Tags};
 use logs::Logs;
@@ -35,22 +35,23 @@ use utils::{map_request, RawRequest, RequestInfo};
 
 use crate::config::hostmap::SecurityPolicy;
 
-fn challenge_verified<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo, logs: &mut Logs) -> bool {
-    if let Some(rbzid) = reqinfo.cookies.get("rbzid") {
-        if let Some(ua) = reqinfo.headers.get("user-agent") {
-            logs.debug(|| format!("Checking rbzid cookie {} with user-agent {}", rbzid, ua));
-            return match gh.parse_rbzid(&rbzid.replace('-', "="), ua) {
-                Some(b) => b,
-                None => {
-                    logs.error("Something when wrong when calling parse_rbzid");
-                    false
-                }
-            };
-        } else {
-            logs.debug("Could not find useragent!");
-        }
-    }
-    false
+fn challenge_verified<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo, logs: &mut Logs) -> PrecisionLevel {
+    todo!()
+    // if let Some(rbzid) = reqinfo.cookies.get("rbzid") {
+    //     if let Some(ua) = reqinfo.headers.get("user-agent") {
+    //         logs.debug(|| format!("Checking rbzid cookie {} with user-agent {}", rbzid, ua));
+    //         return match gh.parse_rbzid(&rbzid.replace('-', "="), ua) {
+    //             Some(b) => b,
+    //             None => {
+    //                 logs.error("Something when wrong when calling parse_rbzid");
+    //                 false
+    //             }
+    //         };
+    //     } else {
+    //         logs.debug("Could not find useragent!");
+    //     }
+    // }
+    // false
 }
 
 /// # Safety
@@ -118,7 +119,7 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
     // there is a lot of copying taking place, to minimize the lock time
     // this decision should be backed with benchmarks
 
-    let ((mut ntags, globalfilter_dec, stats), flows, reqinfo, is_human) =
+    let ((mut ntags, globalfilter_dec, stats), flows, reqinfo, precision_level) =
         match with_config(configpath, logs, |slogs, cfg| {
             let mmapinfo = match_securitypolicy(&raw.get_host(), &raw.meta.path, cfg, slogs, selected_secpol);
             match mmapinfo {
@@ -161,14 +162,14 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
                     let nflows = cfg.flows.clone();
 
                     // without grasshopper, default to being human
-                    let is_human = if let Some(gh) = mgh {
+                    let precision_level = if let Some(gh) = mgh {
                         challenge_verified(gh, &reqinfo, slogs)
                     } else {
-                        false
+                        PrecisionLevel::Invalid
                     };
 
-                    let ntags = tag_request(stats, is_human, &cfg.globalfilters, &reqinfo, &cfg.virtual_tags);
-                    RequestMappingResult::Res((ntags, nflows, reqinfo, is_human))
+                    let ntags = tag_request(stats, precision_level, &cfg.globalfilters, &reqinfo, &cfg.virtual_tags);
+                    RequestMappingResult::Res((ntags, nflows, reqinfo, precision_level))
                 }
                 None => RequestMappingResult::NoSecurityPolicy,
             }
@@ -213,7 +214,7 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
         stats,
         itags: ntags,
         reqinfo,
-        is_human,
+        precision_level,
         globalfilter_dec,
         flows,
     })

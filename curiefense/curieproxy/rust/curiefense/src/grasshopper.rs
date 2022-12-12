@@ -1,25 +1,61 @@
+use serde::{Deserialize, Serialize};
+
 use crate::interface::BlockReason;
 use crate::requestfields::RequestField;
 use crate::{Action, ActionType, Decision};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 
+#[repr(u8)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone, Copy)]
+pub enum PrecisionLevel {
+    Active,
+    Passive,
+    Interactive,
+    MobileSdk,
+    Invalid,
+}
+
+impl PrecisionLevel {
+    pub fn is_human(&self) -> bool {
+        *self != PrecisionLevel::Invalid
+    }
+}
+
+#[repr(u8)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum GHMode {
+    Passive,
+    Active,
+    Interactive,
+}
+
+#[derive(Serialize, Debug)]
+pub struct InputData<'t> {
+    pub headers: &'t RequestField,
+    pub cookies: &'t RequestField,
+    pub ip: &'t str,
+    pub protocol: &'t str,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct OutputData {
+    pub precision_level: PrecisionLevel,
+    pub str_response: String,
+    pub headers: HashMap<String, String>,
+}
+
 pub trait Grasshopper {
-    fn js_app(&self) -> Option<String>;
-    fn js_bio(&self) -> Option<String>;
-    fn parse_rbzid(&self, rbzid: &str, seed: &str) -> Option<bool>;
-    fn gen_new_seed(&self, seed: &str) -> Option<String>;
-    fn verify_workproof(&self, workproof: &str, seed: &str) -> Option<String>;
+    fn is_human(&self, input: InputData, mode: GHMode) -> Result<OutputData, String>;
+    fn verify_challenge(&self, headers: &RequestField) -> Result<String, String>;
 }
 
 mod imported {
+    use super::GHMode;
     use std::os::raw::c_char;
     extern "C" {
-        pub fn verify_workproof(c_zebra: *const c_char, c_ua: *const c_char, success: *mut bool) -> *mut c_char;
-        pub fn gen_new_seed(c_ua: *const c_char) -> *mut c_char;
-        pub fn parse_rbzid(c_rbzid: *const c_char, c_ua: *const c_char) -> i8;
-        pub fn js_app() -> *const i8;
-        pub fn js_bio() -> *const i8;
+        pub fn is_human(c_input_data: *const c_char, mode: GHMode, success: *mut bool) -> *mut c_char;
+        pub fn verify_challenge(c_headers: *const c_char, success: *mut bool) -> *mut c_char;
         pub fn free_string(s: *mut c_char);
     }
 }
@@ -28,20 +64,12 @@ pub struct DummyGrasshopper {}
 
 // use this when grasshopper can't be used
 impl Grasshopper for DummyGrasshopper {
-    fn js_app(&self) -> Option<String> {
-        Some("dummy_grasshopper_for_testing_only".to_string())
+    fn is_human(&self, input: InputData, mode: GHMode) -> Result<OutputData, String> {
+        Err("not implemented".into())
     }
-    fn js_bio(&self) -> Option<String> {
-        Some("dummy_grasshopper_for_testing_only".to_string())
-    }
-    fn parse_rbzid(&self, _rbzid: &str, _seed: &str) -> Option<bool> {
-        Some(false)
-    }
-    fn gen_new_seed(&self, _seed: &str) -> Option<String> {
-        Some("dummy_grasshopper_for_testing_only".to_string())
-    }
-    fn verify_workproof(&self, _workproof: &str, _seed: &str) -> Option<String> {
-        None
+
+    fn verify_challenge(&self, headers: &RequestField) -> Result<String, String> {
+        Err("not implemented".into())
     }
 }
 
@@ -49,56 +77,40 @@ impl Grasshopper for DummyGrasshopper {
 pub struct DynGrasshopper {}
 
 impl Grasshopper for DynGrasshopper {
-    fn js_app(&self) -> Option<String> {
+    fn is_human(&self, input: InputData, mode: GHMode) -> Result<OutputData, String> {
         unsafe {
-            let v = imported::js_app();
-            let c_v = CStr::from_ptr(v);
-            let o = c_v.to_string_lossy().to_string();
-
-            Some(o)
-        }
-    }
-    fn js_bio(&self) -> Option<String> {
-        unsafe {
-            let v = imported::js_bio();
-            let c_v = CStr::from_ptr(v);
-            let o = c_v.to_string_lossy().to_string();
-
-            Some(o)
-        }
-    }
-    fn parse_rbzid(&self, rbzid: &str, seed: &str) -> Option<bool> {
-        unsafe {
-            let c_rbzid = CString::new(rbzid).ok()?;
-            let c_seed = CString::new(seed).ok()?;
-            match imported::parse_rbzid(c_rbzid.as_ptr(), c_seed.as_ptr()) {
-                0 => Some(false),
-                1 => Some(true),
-                _ => None,
-            }
-        }
-    }
-    fn gen_new_seed(&self, seed: &str) -> Option<String> {
-        unsafe {
-            let c_seed = CString::new(seed).ok()?;
-            let r = imported::gen_new_seed(c_seed.as_ptr());
-            let cstr = CStr::from_ptr(r);
-            let o = cstr.to_string_lossy().to_string();
-            imported::free_string(r);
-            Some(o)
-        }
-    }
-    fn verify_workproof(&self, workproof: &str, seed: &str) -> Option<String> {
-        unsafe {
-            let c_workproof = CString::new(workproof).ok()?;
-            let c_seed = CString::new(seed).ok()?;
+            let encoded_input = serde_json::to_vec(&input).map_err(|rr| rr.to_string())?;
+            let cinput =
+                CString::new(encoded_input).map_err(|_| "null character in JSON encoded string?!?".to_string())?;
             let mut success = false;
-            let r = imported::verify_workproof(c_workproof.as_ptr(), c_seed.as_ptr(), &mut success);
+            let r = imported::is_human(cinput.as_ptr(), mode, &mut success);
+            let cstr = CStr::from_ptr(r);
+            let res = if success {
+                serde_json::from_slice(cstr.to_bytes()).map_err(|rr| rr.to_string())
+            } else {
+                let o = cstr.to_string_lossy().to_string();
+                todo!()
+            };
+            imported::free_string(r);
+            res
+        }
+    }
 
+    fn verify_challenge(&self, headers: &RequestField) -> Result<String, String> {
+        unsafe {
+            let encoded_headers = serde_json::to_vec(headers).map_err(|rr| rr.to_string())?;
+            let c_headers =
+                CString::new(encoded_headers).map_err(|_| "null character in JSON encoded string?!?".to_string())?;
+            let mut success = false;
+            let r = imported::verify_challenge(c_headers.as_ptr(), &mut success);
             let cstr = CStr::from_ptr(r);
             let o = cstr.to_string_lossy().to_string();
             imported::free_string(r);
-            Some(o)
+            if success {
+                Ok(o)
+            } else {
+                Err(o)
+            }
         }
     }
 }
@@ -118,6 +130,7 @@ pub fn gh_fail_decision(reason: &str) -> Decision {
 }
 
 pub fn challenge_phase01<GH: Grasshopper>(gh: &GH, ua: &str, reasons: Vec<BlockReason>) -> Decision {
+    /*
     let seed = match gh.gen_new_seed(ua) {
         None => return gh_fail_decision("could not call gen_new_seed"),
         Some(s) => s,
@@ -159,19 +172,13 @@ pub fn challenge_phase01<GH: Grasshopper>(gh: &GH, ua: &str, reasons: Vec<BlockR
             extra_tags: Some(["challenge_phase01"].iter().map(|s| s.to_string()).collect()),
         },
         reasons,
-    )
-}
-
-fn extract_zebra(headers: &RequestField) -> Option<String> {
-    for (k, v) in headers.iter() {
-        if k.starts_with("x-zebra-") {
-            return Some(v.replace('-', "="));
-        }
-    }
-    None
+    ) */
+    todo!("")
 }
 
 pub fn challenge_phase02<GH: Grasshopper>(gh: &GH, uri: &str, headers: &RequestField) -> Option<Decision> {
+    todo!()
+    /*
     if !uri.starts_with("/7060ac19f50208cbb6b45328ef94140a612ee92387e015594234077b4d1e64f1/") {
         return None;
     }
@@ -196,4 +203,5 @@ pub fn challenge_phase02<GH: Grasshopper>(gh: &GH, uri: &str, headers: &RequestF
         },
         vec![BlockReason::phase02()],
     ))
+    */
 }
