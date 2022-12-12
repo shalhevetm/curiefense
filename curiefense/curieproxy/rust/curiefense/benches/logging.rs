@@ -4,7 +4,7 @@ use curiefense::config::contentfilter::{ContentFilterProfile, ContentFilterRules
 use curiefense::config::hostmap::{PolicyId, SecurityPolicy};
 use curiefense::config::raw::AclProfile;
 use curiefense::config::virtualtags::VirtualTags;
-use curiefense::grasshopper::{DummyGrasshopper, PrecisionLevel};
+use curiefense::grasshopper::{DummyGrasshopper, PrecisionLevel, GHResponse};
 use curiefense::interface::{SecpolStats, SimpleDecision, StatsCollect};
 use curiefense::logs::{LogLevel, Logs};
 use curiefense::tagging::tag_request;
@@ -53,7 +53,7 @@ fn logging_empty(c: &mut Criterion) {
     let p0 = APhase0 {
         flows: HashMap::new(),
         globalfilter_dec: SimpleDecision::Pass,
-        precision_level: PrecisionLevel::Invalid,
+        gh_response: GHResponse::invalid(),
         itags,
         reqinfo,
         stats,

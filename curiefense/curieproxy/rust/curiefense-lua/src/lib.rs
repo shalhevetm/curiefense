@@ -7,9 +7,9 @@ use curiefense::analyze::CfRulesArg;
 use curiefense::analyze::InitResult;
 use curiefense::grasshopper::DynGrasshopper;
 use curiefense::grasshopper::GHMode;
+use curiefense::grasshopper::GHQuery;
+use curiefense::grasshopper::GHResponse;
 use curiefense::grasshopper::Grasshopper;
-use curiefense::grasshopper::InputData;
-use curiefense::grasshopper::OutputData;
 use curiefense::grasshopper::PrecisionLevel;
 use curiefense::inspect_generic_request_map;
 use curiefense::inspect_generic_request_map_init;
@@ -239,8 +239,8 @@ struct DummyGrasshopper {
 }
 
 impl Grasshopper for DummyGrasshopper {
-    fn is_human(&self, _input: InputData, _mode: GHMode) -> Result<OutputData, String> {
-        Ok(OutputData {
+    fn is_human(&self, _input: GHQuery, _mode: GHMode) -> Result<GHResponse, String> {
+        Ok(GHResponse {
             precision_level: self.humanity,
             str_response: "empty".to_string(),
             headers: HashMap::new(),

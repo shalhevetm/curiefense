@@ -24,7 +24,7 @@ use analyze::{APhase0, CfRulesArg};
 use body::body_too_large;
 use config::virtualtags::VirtualTags;
 use config::with_config;
-use grasshopper::{Grasshopper, PrecisionLevel};
+use grasshopper::{GHMode, Grasshopper, GHQuery, GHResponse};
 use interface::stats::{SecpolStats, Stats, StatsCollect};
 use interface::{Action, ActionType, AnalyzeResult, BlockReason, Decision, Location, Tags};
 use logs::Logs;
@@ -35,23 +35,22 @@ use utils::{map_request, RawRequest, RequestInfo};
 
 use crate::config::hostmap::SecurityPolicy;
 
-fn challenge_verified<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo, logs: &mut Logs) -> PrecisionLevel {
-    todo!()
-    // if let Some(rbzid) = reqinfo.cookies.get("rbzid") {
-    //     if let Some(ua) = reqinfo.headers.get("user-agent") {
-    //         logs.debug(|| format!("Checking rbzid cookie {} with user-agent {}", rbzid, ua));
-    //         return match gh.parse_rbzid(&rbzid.replace('-', "="), ua) {
-    //             Some(b) => b,
-    //             None => {
-    //                 logs.error("Something when wrong when calling parse_rbzid");
-    //                 false
-    //             }
-    //         };
-    //     } else {
-    //         logs.debug("Could not find useragent!");
-    //     }
-    // }
-    // false
+fn challenge_verified<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo, logs: &mut Logs) -> GHResponse {
+    match gh.is_human(
+        GHQuery {
+            headers: &reqinfo.headers,
+            cookies: &reqinfo.cookies,
+            ip: &reqinfo.rinfo.geoip.ipstr,
+            protocol: "TODO",
+        },
+        GHMode::Passive,
+    ) {
+        Ok(odata) => odata,
+        Err(rr) => {
+            logs.error(|| format!("Grasshopper: {}", rr));
+            GHResponse::invalid()
+        }
+    }
 }
 
 /// # Safety
@@ -119,7 +118,7 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
     // there is a lot of copying taking place, to minimize the lock time
     // this decision should be backed with benchmarks
 
-    let ((mut ntags, globalfilter_dec, stats), flows, reqinfo, precision_level) =
+    let ((mut ntags, globalfilter_dec, stats), flows, reqinfo, gh_response) =
         match with_config(configpath, logs, |slogs, cfg| {
             let mmapinfo = match_securitypolicy(&raw.get_host(), &raw.meta.path, cfg, slogs, selected_secpol);
             match mmapinfo {
@@ -162,14 +161,20 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
                     let nflows = cfg.flows.clone();
 
                     // without grasshopper, default to being human
-                    let precision_level = if let Some(gh) = mgh {
+                    let gh_response = if let Some(gh) = mgh {
                         challenge_verified(gh, &reqinfo, slogs)
                     } else {
-                        PrecisionLevel::Invalid
+                        GHResponse::invalid()
                     };
 
-                    let ntags = tag_request(stats, precision_level, &cfg.globalfilters, &reqinfo, &cfg.virtual_tags);
-                    RequestMappingResult::Res((ntags, nflows, reqinfo, precision_level))
+                    let ntags = tag_request(
+                        stats,
+                        gh_response.precision_level,
+                        &cfg.globalfilters,
+                        &reqinfo,
+                        &cfg.virtual_tags,
+                    );
+                    RequestMappingResult::Res((ntags, nflows, reqinfo, gh_response))
                 }
                 None => RequestMappingResult::NoSecurityPolicy,
             }
@@ -214,7 +219,7 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
         stats,
         itags: ntags,
         reqinfo,
-        precision_level,
+        gh_response,
         globalfilter_dec,
         flows,
     })

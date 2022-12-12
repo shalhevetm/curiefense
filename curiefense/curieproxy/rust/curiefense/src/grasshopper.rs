@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::interface::BlockReason;
 use crate::requestfields::RequestField;
+use crate::utils::RequestInfo;
 use crate::{Action, ActionType, Decision};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
@@ -31,22 +32,32 @@ pub enum GHMode {
 }
 
 #[derive(Serialize, Debug)]
-pub struct InputData<'t> {
+pub struct GHQuery<'t> {
     pub headers: &'t RequestField,
     pub cookies: &'t RequestField,
     pub ip: &'t str,
     pub protocol: &'t str,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct OutputData {
+#[derive(Deserialize, Debug, Clone)]
+pub struct GHResponse {
     pub precision_level: PrecisionLevel,
     pub str_response: String,
     pub headers: HashMap<String, String>,
 }
 
+impl GHResponse {
+    pub fn invalid() -> Self {
+        Self {
+            precision_level: PrecisionLevel::Invalid,
+            str_response: "invalid".to_string(),
+            headers: HashMap::new(),
+        }
+    }
+}
+
 pub trait Grasshopper {
-    fn is_human(&self, input: InputData, mode: GHMode) -> Result<OutputData, String>;
+    fn is_human(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String>;
     fn verify_challenge(&self, headers: &RequestField) -> Result<String, String>;
 }
 
@@ -64,7 +75,7 @@ pub struct DummyGrasshopper {}
 
 // use this when grasshopper can't be used
 impl Grasshopper for DummyGrasshopper {
-    fn is_human(&self, input: InputData, mode: GHMode) -> Result<OutputData, String> {
+    fn is_human(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String> {
         Err("not implemented".into())
     }
 
@@ -77,7 +88,7 @@ impl Grasshopper for DummyGrasshopper {
 pub struct DynGrasshopper {}
 
 impl Grasshopper for DynGrasshopper {
-    fn is_human(&self, input: InputData, mode: GHMode) -> Result<OutputData, String> {
+    fn is_human(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String> {
         unsafe {
             let encoded_input = serde_json::to_vec(&input).map_err(|rr| rr.to_string())?;
             let cinput =
@@ -129,54 +140,21 @@ pub fn gh_fail_decision(reason: &str) -> Decision {
     )
 }
 
-pub fn challenge_phase01<GH: Grasshopper>(gh: &GH, ua: &str, reasons: Vec<BlockReason>) -> Decision {
-    /*
-    let seed = match gh.gen_new_seed(ua) {
-        None => return gh_fail_decision("could not call gen_new_seed"),
-        Some(s) => s,
-    };
-    let chall_lib = match gh.js_app() {
-        None => return gh_fail_decision("could not call chall_lib"),
-        Some(s) => s,
-    };
-    let hdrs: HashMap<String, String> = [
-        ("Content-Type", "text/html; charset=utf-8"),
-        ("Expires", "Thu, 01 Aug 1978 00:01:48 GMT"),
-        ("Cache-Control", "no-cache, private, no-transform, no-store"),
-        ("Pragma", "no-cache"),
-        (
-            "P3P",
-            "CP=\"IDC DSP COR ADM DEVi TAIi PSA PSD IVAi IVDi CONi HIS OUR IND CNT\"",
-        ),
-    ]
-    .iter()
-    .map(|(k, v)| (k.to_string(), v.to_string()))
-    .collect();
-
-    let mut content = "<html><head><meta charset=\"utf-8\"><script>".to_string();
-    content += &chall_lib;
-    content += ";;window.rbzns={bereshit: \"1\", seed: \"";
-    content += &seed;
-    content += "\", storage:\"3\"};winsocks();";
-    content += "</script></head><body></body></html>";
-
-    // here humans are accepted, as they were not denied
-    // (this would have been caught by the previous guard)
+pub fn challenge_phase01<GH: Grasshopper>(gh: &GH, reasons: Vec<BlockReason>, gh_response: GHResponse) -> Decision {
     Decision::action(
         Action {
             atype: ActionType::Block,
             block_mode: true,
-            headers: Some(hdrs),
+            headers: Some(gh_response.headers),
             status: 247,
-            content,
+            content: gh_response.str_response,
             extra_tags: Some(["challenge_phase01"].iter().map(|s| s.to_string()).collect()),
         },
         reasons,
-    ) */
-    todo!("")
+    )
 }
 
-pub fn challenge_phase02<GH: Grasshopper>(gh: &GH, uri: &str, headers: &RequestField) -> Option<Decision> {
+pub fn challenge_phase02<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo) -> Option<Decision> {
     todo!()
     /*
     if !uri.starts_with("/7060ac19f50208cbb6b45328ef94140a612ee92387e015594234077b4d1e64f1/") {
