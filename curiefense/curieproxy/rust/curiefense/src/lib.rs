@@ -24,7 +24,7 @@ use analyze::{APhase0, CfRulesArg};
 use body::body_too_large;
 use config::virtualtags::VirtualTags;
 use config::with_config;
-use grasshopper::{GHMode, Grasshopper, GHQuery, GHResponse};
+use grasshopper::{GHQuery, Grasshopper, PrecisionLevel};
 use interface::stats::{SecpolStats, Stats, StatsCollect};
 use interface::{Action, ActionType, AnalyzeResult, BlockReason, Decision, Location, Tags};
 use logs::Logs;
@@ -35,20 +35,17 @@ use utils::{map_request, RawRequest, RequestInfo};
 
 use crate::config::hostmap::SecurityPolicy;
 
-fn challenge_verified<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo, logs: &mut Logs) -> GHResponse {
-    match gh.is_human(
-        GHQuery {
-            headers: reqinfo.headers.as_map(),
-            cookies: reqinfo.cookies.as_map(),
-            ip: &reqinfo.rinfo.geoip.ipstr,
-            protocol: "TODO",
-        },
-        GHMode::Passive,
-    ) {
-        Ok(odata) => odata,
+fn challenge_verified<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo, logs: &mut Logs) -> PrecisionLevel {
+    match gh.is_human(GHQuery {
+        headers: reqinfo.headers.as_map(),
+        cookies: reqinfo.cookies.as_map(),
+        ip: &reqinfo.rinfo.geoip.ipstr,
+        protocol: "TODO",
+    }) {
+        Ok(level) => level,
         Err(rr) => {
             logs.error(|| format!("Grasshopper: {}", rr));
-            GHResponse::invalid()
+            PrecisionLevel::Invalid
         }
     }
 }
@@ -118,7 +115,7 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
     // there is a lot of copying taking place, to minimize the lock time
     // this decision should be backed with benchmarks
 
-    let ((mut ntags, globalfilter_dec, stats), flows, reqinfo, gh_response) =
+    let ((mut ntags, globalfilter_dec, stats), flows, reqinfo, precision_level) =
         match with_config(configpath, logs, |slogs, cfg| {
             let mmapinfo = match_securitypolicy(&raw.get_host(), &raw.meta.path, cfg, slogs, selected_secpol);
             match mmapinfo {
@@ -161,20 +158,14 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
                     let nflows = cfg.flows.clone();
 
                     // without grasshopper, default to being human
-                    let gh_response = if let Some(gh) = mgh {
+                    let precision_level = if let Some(gh) = mgh {
                         challenge_verified(gh, &reqinfo, slogs)
                     } else {
-                        GHResponse::invalid()
+                        PrecisionLevel::Invalid
                     };
 
-                    let ntags = tag_request(
-                        stats,
-                        gh_response.precision_level,
-                        &cfg.globalfilters,
-                        &reqinfo,
-                        &cfg.virtual_tags,
-                    );
-                    RequestMappingResult::Res((ntags, nflows, reqinfo, gh_response))
+                    let ntags = tag_request(stats, precision_level, &cfg.globalfilters, &reqinfo, &cfg.virtual_tags);
+                    RequestMappingResult::Res((ntags, nflows, reqinfo, precision_level))
                 }
                 None => RequestMappingResult::NoSecurityPolicy,
             }
@@ -219,7 +210,7 @@ pub fn inspect_generic_request_map_init<GH: Grasshopper>(
         stats,
         itags: ntags,
         reqinfo,
-        gh_response,
+        precision_level,
         globalfilter_dec,
         flows,
     })

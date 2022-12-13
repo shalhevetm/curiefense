@@ -18,7 +18,7 @@ use crate::{
         contentfilter::ContentFilterRules, contentfilter::SectionIdx, flow::FlowMap, globalfilter::GlobalFilterSection,
         hostmap::SecurityPolicy, virtualtags::VirtualTags, Config,
     },
-    grasshopper::{GHResponse, Grasshopper},
+    grasshopper::{Grasshopper, PrecisionLevel},
     interface::{
         stats::{BStageSecpol, SecpolStats, StatsCollect},
         Action, ActionType, AnalyzeResult, BlockReason, Decision, Location, Tags,
@@ -242,15 +242,15 @@ pub async fn finalize<GH: Grasshopper>(
         idata.plugins,
     );
 
-    let gh_response = if let Some(gh) = mgh {
+    let precision_level = if let Some(gh) = mgh {
         challenge_verified(gh, &reqinfo, &mut logs)
     } else {
-        GHResponse::invalid()
+        PrecisionLevel::Invalid
     };
     // without grasshopper, default to being human
     let (mut tags, globalfilter_dec, stats) = tag_request(
         idata.stats,
-        gh_response.precision_level,
+        precision_level,
         globalfilters,
         &reqinfo,
         &vtags,
@@ -264,7 +264,7 @@ pub async fn finalize<GH: Grasshopper>(
             stats,
             itags: tags,
             reqinfo,
-            gh_response,
+            precision_level,
             globalfilter_dec,
             flows: flows.clone(),
         },

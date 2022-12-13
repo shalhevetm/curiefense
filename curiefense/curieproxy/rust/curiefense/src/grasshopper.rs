@@ -57,15 +57,21 @@ impl GHResponse {
 }
 
 pub trait Grasshopper {
-    fn is_human(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String>;
+    fn is_human(&self, input: GHQuery) -> Result<PrecisionLevel, String>;
+    fn init_challenge(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String>;
     fn verify_challenge(&self, headers: &RequestField) -> Result<String, String>;
 }
 
 mod imported {
-    use super::GHMode;
+    use super::{GHMode, PrecisionLevel};
     use std::os::raw::c_char;
     extern "C" {
-        pub fn is_human(c_input_data: *const c_char, mode: GHMode, success: *mut bool) -> *mut c_char;
+        pub fn is_human(
+            c_input_data: *const c_char,
+            success: *mut bool,
+            precision_level: *mut PrecisionLevel,
+        ) -> *mut c_char;
+        pub fn init_challenge(c_input_data: *const c_char, mode: GHMode, success: *mut bool) -> *mut c_char;
         pub fn verify_challenge(c_headers: *const c_char, success: *mut bool) -> *mut c_char;
         pub fn free_string(s: *mut c_char);
     }
@@ -75,11 +81,15 @@ pub struct DummyGrasshopper {}
 
 // use this when grasshopper can't be used
 impl Grasshopper for DummyGrasshopper {
-    fn is_human(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String> {
+    fn verify_challenge(&self, _headers: &RequestField) -> Result<String, String> {
         Err("not implemented".into())
     }
 
-    fn verify_challenge(&self, headers: &RequestField) -> Result<String, String> {
+    fn init_challenge(&self, _input: GHQuery, _mode: GHMode) -> Result<GHResponse, String> {
+        Err("not implemented".into())
+    }
+
+    fn is_human(&self, _input: GHQuery) -> Result<PrecisionLevel, String> {
         Err("not implemented".into())
     }
 }
@@ -88,22 +98,46 @@ impl Grasshopper for DummyGrasshopper {
 pub struct DynGrasshopper {}
 
 impl Grasshopper for DynGrasshopper {
-    fn is_human(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String> {
+    fn is_human(&self, input: GHQuery) -> Result<PrecisionLevel, String> {
         unsafe {
             let encoded_input = serde_json::to_vec(&input).map_err(|rr| rr.to_string())?;
             let cinput =
                 CString::new(encoded_input).map_err(|_| "null character in JSON encoded string?!?".to_string())?;
             let mut success = false;
-            let r = imported::is_human(cinput.as_ptr(), mode, &mut success);
+            let mut precision_level = PrecisionLevel::Invalid;
+            let r = imported::is_human(cinput.as_ptr(), &mut success, &mut precision_level);
+            if success {
+                if r.is_null() {
+                    Ok(precision_level)
+                } else {
+                    Err("Grasshopper unexpectedly returned a non null pointer on success!".to_string())
+                }
+            } else {
+                let cstr = CStr::from_ptr(r);
+                let o = cstr.to_string_lossy().to_string();
+                imported::free_string(r);
+                Err(o)
+            }
+        }
+    }
+
+    fn init_challenge(&self, input: GHQuery, mode: GHMode) -> Result<GHResponse, String> {
+        unsafe {
+            let encoded_input = serde_json::to_vec(&input).map_err(|rr| rr.to_string())?;
+            let cinput =
+                CString::new(encoded_input).map_err(|_| "null character in JSON encoded string?!?".to_string())?;
+            let mut success = false;
+            let r = imported::init_challenge(cinput.as_ptr(), mode, &mut success);
             let cstr = CStr::from_ptr(r);
-            let res = if success {
-                serde_json::from_slice(cstr.to_bytes()).map_err(|rr| rr.to_string())
+            if success {
+                let reply: GHResponse = serde_json::from_slice(cstr.to_bytes()).unwrap();
+                imported::free_string(r);
+                Ok(reply)
             } else {
                 let o = cstr.to_string_lossy().to_string();
-                todo!()
-            };
-            imported::free_string(r);
-            res
+                imported::free_string(r);
+                Err(o)
+            }
         }
     }
 
@@ -140,7 +174,25 @@ pub fn gh_fail_decision(reason: &str) -> Decision {
     )
 }
 
-pub fn challenge_phase01<GH: Grasshopper>(gh: &GH, reasons: Vec<BlockReason>, gh_response: GHResponse) -> Decision {
+pub fn challenge_phase01<GH: Grasshopper>(
+    gh: &GH,
+    rinfo: &RequestInfo,
+    reasons: Vec<BlockReason>,
+    precision_level: PrecisionLevel,
+) -> Decision {
+    let query = GHQuery {
+        headers: rinfo.headers.as_map(),
+        cookies: rinfo.cookies.as_map(),
+        ip: &rinfo.rinfo.geoip.ipstr,
+        protocol: "TODO",
+    };
+    let gh_response = match gh.init_challenge(query, GHMode::Passive) {
+        Ok(r) => r,
+        Err(rr) => panic!(
+            "TODO: should be block the user or allow when there was an error ? {}",
+            rr
+        ),
+    };
     Decision::action(
         Action {
             atype: ActionType::Block,
@@ -155,7 +207,7 @@ pub fn challenge_phase01<GH: Grasshopper>(gh: &GH, reasons: Vec<BlockReason>, gh
 }
 
 pub fn challenge_phase02<GH: Grasshopper>(gh: &GH, reqinfo: &RequestInfo) -> Option<Decision> {
-    todo!()
+    None
     /*
     if !uri.starts_with("/7060ac19f50208cbb6b45328ef94140a612ee92387e015594234077b4d1e64f1/") {
         return None;

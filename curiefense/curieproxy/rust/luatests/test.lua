@@ -372,9 +372,9 @@ local function test_raw_request(request_path, mode)
         ", but got " .. cjson.encode(actual.action))
       good = false
     end
-    good = test_status(expected, actual) or good
-    good = test_block_mode(expected, actual) or good
-    good = test_headers(expected, actual) or good
+    good = test_status(expected, actual) and good
+    good = test_block_mode(expected, actual) and good
+    good = test_headers(expected, actual) and good
 
     local triggers = {
       "acl_triggers",
@@ -383,7 +383,7 @@ local function test_raw_request(request_path, mode)
       "content_filter_triggers"
     }
     for _, trigger_name in pairs(triggers) do
-      good = test_trigger(expected, request_map, trigger_name) or good
+      good = test_trigger(expected, request_map, trigger_name) and good
     end
 
     if not good then

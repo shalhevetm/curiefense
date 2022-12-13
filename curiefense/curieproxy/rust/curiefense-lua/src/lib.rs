@@ -239,12 +239,8 @@ struct DummyGrasshopper {
 }
 
 impl Grasshopper for DummyGrasshopper {
-    fn is_human(&self, _input: GHQuery, _mode: GHMode) -> Result<GHResponse, String> {
-        Ok(GHResponse {
-            precision_level: self.humanity,
-            str_response: "empty".to_string(),
-            headers: HashMap::new(),
-        })
+    fn is_human(&self, _input: GHQuery) -> Result<PrecisionLevel, String> {
+        Ok(self.humanity)
     }
 
     fn verify_challenge(&self, _headers: &RequestField) -> Result<String, String> {
@@ -253,6 +249,10 @@ impl Grasshopper for DummyGrasshopper {
         } else {
             Ok("OK".to_string())
         }
+    }
+
+    fn init_challenge(&self, _input: GHQuery, _mode: GHMode) -> Result<GHResponse, String> {
+        Ok(GHResponse::invalid())
     }
 }
 

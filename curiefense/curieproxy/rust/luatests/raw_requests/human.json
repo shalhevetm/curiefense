@@ -56,7 +56,7 @@
       "x-forwarded-for": "23.129.64.253"
     },
     "name": "deny (human)",
-    "human": true,
+    "human": "active",
     "response": {
       "action": "custom_response",
       "status": 403,
@@ -90,6 +90,7 @@
         "deny",
         "status:403",
         "status-class:4xx",
+        "precision-l1",
         "denybot"
       ]
     }
