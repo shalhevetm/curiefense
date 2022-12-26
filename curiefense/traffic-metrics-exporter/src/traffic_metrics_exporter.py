@@ -32,6 +32,7 @@ logging.basicConfig(level=LOGLEVEL)
 logger = logging.getLogger("traffic-metrics-exporter")
 
 METRICS_PULL_INTERVAL = int(os.getenv("METRICS_PULL_INTERVAL", 60))
+PREFIX = "curieproxy_"
 
 http_methods = [
     "GET",
@@ -56,7 +57,7 @@ for coll in list(REGISTRY._collector_to_names.keys()):
 start_http_server(8911)
 
 for name, counter_label in counters_format.items():
-    counter_name = name
+    counter_name = PREFIX+name
     type = counter_label["type"]
     label = counter_label.get("label")
     more_labels = [label] if label else []
@@ -162,7 +163,7 @@ def update_t3_counters(t2_dict, acc_avg):
         counter_type = _get_counter_type(valid_name)
         if not counter_type:
             continue
-        counter = t3_counters[valid_name]
+        counter = t3_counters[PREFIX+valid_name]
         if counter_type == REGULAR:
             counter.labels(app, proxy, profile).inc(counter_value)
         elif counter_type in [AVERAGE, MAX, MIN]:
