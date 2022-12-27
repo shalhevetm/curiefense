@@ -32,7 +32,7 @@ logging.basicConfig(level=LOGLEVEL)
 logger = logging.getLogger("traffic-metrics-exporter")
 
 METRICS_PULL_INTERVAL = int(os.getenv("METRICS_PULL_INTERVAL", 60))
-PREFIX = "curieproxy_"
+PREFIX = "reblaze_"
 
 http_methods = [
     "GET",
