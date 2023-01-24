@@ -5,7 +5,7 @@ use crate::grasshopper::{challenge_phase01, Grasshopper};
 use crate::logs::Logs;
 use crate::utils::json::NameValue;
 use crate::utils::templating::{parse_request_template, RequestTemplate, TVar, TemplatePart};
-use crate::utils::{selector, RequestInfo, Selected};
+use crate::utils::{selector, GeoIp, RequestInfo, Selected};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::{HashMap, HashSet};
@@ -98,13 +98,15 @@ pub struct Decision {
 }
 
 impl Decision {
-    pub fn skip(initiator: Initiator, location: HashSet<Location>) -> Self {
+    pub fn skip(initiator: Initiator, location: Location) -> Self {
         Decision {
             maction: None,
             reasons: vec![BlockReason {
                 initiator,
                 location,
                 decision: BDecision::Skip,
+                extra_locations: Vec::new(),
+                extra: serde_json::Value::Null,
             }],
         }
     }
@@ -212,20 +214,19 @@ pub fn jsonlog_rinfo(
     let mut ser = serde_json::Serializer::new(&mut outbuffer);
     let mut map_ser = ser.serialize_map(None)?;
     map_ser.serialize_entry("timestamp", now)?;
+    //     map_ser.serialize_entry("@timestamp", now)?;
     map_ser.serialize_entry("curiesession", &rinfo.session)?;
     map_ser.serialize_entry("curiesession_ids", &NameValue::new(&rinfo.session_ids))?;
     let request_id = proxy.get("request_id").or(rinfo.rinfo.meta.requestid.as_ref());
     map_ser.serialize_entry("request_id", &request_id)?;
     map_ser.serialize_entry("arguments", &rinfo.rinfo.qinfo.args)?;
-    // TODO BQ
-    // map_ser.serialize_entry("path", &rinfo.rinfo.qinfo.qpath)?;
+    map_ser.serialize_entry("path", &rinfo.rinfo.qinfo.qpath)?;
     map_ser.serialize_entry("path_parts", &rinfo.rinfo.qinfo.path_as_map)?;
     map_ser.serialize_entry("authority", &rinfo.rinfo.host)?;
     map_ser.serialize_entry("cookies", &rinfo.cookies)?;
     map_ser.serialize_entry("headers", &rinfo.headers)?;
     if !rinfo.plugins.is_empty() {
-        // TODO BQ
-        // map_ser.serialize_entry("plugins", &rinfo.plugins)?;
+        map_ser.serialize_entry("plugins", &rinfo.plugins)?;
     }
     map_ser.serialize_entry("uri", &rinfo.rinfo.meta.path)?;
     map_ser.serialize_entry("ip", &rinfo.rinfo.geoip.ip)?;
@@ -233,10 +234,12 @@ pub fn jsonlog_rinfo(
     map_ser.serialize_entry("response_code", &rcode)?;
     map_ser.serialize_entry("logs", logs)?;
     map_ser.serialize_entry("processing_stage", &stats.processing_stage)?;
+
     map_ser.serialize_entry("acl_triggers", get_trigger(&InitiatorKind::Acl))?;
     map_ser.serialize_entry("rate_limit_triggers", get_trigger(&InitiatorKind::RateLimit))?;
     map_ser.serialize_entry("global_filter_triggers", get_trigger(&InitiatorKind::GlobalFilter))?;
     map_ser.serialize_entry("content_filter_triggers", get_trigger(&InitiatorKind::ContentFilter))?;
+    map_ser.serialize_entry("restriction_triggers", get_trigger(&InitiatorKind::Restriction))?;
     map_ser.serialize_entry("reason", &block_reason_desc)?;
 
     // it's too bad one can't directly write the recursive structures from just the serializer object
@@ -287,7 +290,7 @@ pub fn jsonlog_rinfo(
 
     struct LogProxy<'t> {
         p: &'t HashMap<String, String>,
-        l: &'t Option<(f64, f64)>,
+        geo: &'t GeoIp,
         n: &'t Option<String>,
     }
     impl<'t> Serialize for LogProxy<'t> {
@@ -301,11 +304,51 @@ pub fn jsonlog_rinfo(
             }
             sq.serialize_element(&crate::utils::json::BigTableKV {
                 name: "geo_long",
-                value: self.l.as_ref().map(|x| x.0),
+                value: self.geo.location.as_ref().map(|x| x.0),
             })?;
             sq.serialize_element(&crate::utils::json::BigTableKV {
                 name: "geo_lat",
-                value: self.l.as_ref().map(|x| x.1),
+                value: self.geo.location.as_ref().map(|x| x.1),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_as_name",
+                value: self.geo.as_name.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_as_domain",
+                value: self.geo.as_domain.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_as_type",
+                value: self.geo.as_type.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_company_country",
+                value: self.geo.company_country.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_company_domain",
+                value: self.geo.company_domain.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_company_type",
+                value: self.geo.company_type.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_mobile_carrier",
+                value: self.geo.mobile_carrier_name.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_mobile_country",
+                value: self.geo.mobile_country.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_mobile_mcc",
+                value: self.geo.mobile_mcc.as_ref(),
+            })?;
+            sq.serialize_element(&crate::utils::json::BigTableKV {
+                name: "geo_mobile_mnc",
+                value: self.geo.mobile_mnc.as_ref(),
             })?;
             sq.serialize_element(&crate::utils::json::BigTableKV {
                 name: "container",
@@ -318,7 +361,7 @@ pub fn jsonlog_rinfo(
         "proxy",
         &LogProxy {
             p: &proxy,
-            l: &rinfo.rinfo.geoip.location,
+            geo: &rinfo.rinfo.geoip,
             n: &rinfo.rinfo.container_name,
         },
     )?;
@@ -427,6 +470,17 @@ impl SimpleActionT {
             Challenge => 6,
             Monitor => 1,
             Skip => 9,
+        }
+    }
+
+    pub fn rate_limit_priority(&self) -> u32 {
+        use SimpleActionT::*;
+        match self {
+            Custom { content: _ } => 8,
+            Challenge => 6,
+            Monitor => 1,
+            // skip action should be ignored when using with rate limit
+            Skip => 0,
         }
     }
 

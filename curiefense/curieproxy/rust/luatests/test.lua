@@ -133,6 +133,7 @@ local function run_inspect_request_gen(raw_request_map, mode)
         res = curiefense.inspect_request({loglevel="debug", meta=meta, headers=headers,
                 body=raw_request_map.body, ip=ip, plugins=raw_request_map.plugins})
       else
+        -- APhase1
         local r1 = curiefense.inspect_request_init({loglevel="debug", meta=meta,
                     headers=headers, body=raw_request_map.body, ip=ip,
                     plugins=raw_request_map.plugins})
@@ -170,7 +171,10 @@ local function run_inspect_request_gen(raw_request_map, mode)
           table.insert(rflows, flow:result(flowtype))
         end
 
-        local limits = r1.limits
+        -- APhase2I
+        local r2 = curiefense.inspect_request_flows(r1, rflows)
+
+        local limits = r2.limits
         local rlimits = {}
         for _, limit in pairs(limits) do
           local key = limit.key
@@ -196,7 +200,7 @@ local function run_inspect_request_gen(raw_request_map, mode)
           table.insert(rlimits, limit:result(curcount))
         end
 
-        res = curiefense.inspect_request_process(r1, rflows, rlimits)
+        res = curiefense.inspect_request_process(r2, rlimits)
       end
     end
     if res.error then
@@ -380,10 +384,11 @@ local function test_raw_request(request_path, mode)
       "acl_triggers",
       "rate_limit_triggers",
       "global_filter_triggers",
-      "content_filter_triggers"
+      "content_filter_triggers",
+      "restriction_triggers"
     }
     for _, trigger_name in pairs(triggers) do
-      good = test_trigger(expected, request_map, trigger_name) or good
+      good = test_trigger(expected, request_map, trigger_name) and good
     end
 
     if not good then

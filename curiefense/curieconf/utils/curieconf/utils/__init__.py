@@ -23,6 +23,11 @@ BLOBS_PATH = {
     "geolite2asn": "config/maxmind/GeoLite2-ASN.mmdb",
     "geolite2country": "config/maxmind/GeoLite2-Country.mmdb",
     "geolite2city": "config/maxmind/GeoLite2-City.mmdb",
+    "ipinfo_asn": "config/ipinfo/IPInfo-ASN.mmdb",
+    "ipinfo_carrier": "config/ipinfo/IPInfo-Carrier.mmdb",
+    "ipinfo_standard_company": "IPInfo-Standard-Company.mmdb",
+    "ipinfo_standard_location": "IPInfo-Standard-Location.mmdb",
+    "ipinfo_standard_privacy": "IPInfo-Standard-Privacy.mmdb",
     "customconf": "config/customconf.tar.gz",
 }
 
@@ -30,6 +35,11 @@ BLOBS_BOOTSTRAP = {
     "geolite2asn": b"",
     "geolite2country": b"",
     "geolite2city": b"",
+    "ipinfo_asn": b"",
+    "ipinfo_carrier": b"",
+    "ipinfo_standard_company": b"",
+    "ipinfo_standard_location": b"",
+    "ipinfo_standard_privacy": b"",
     "customconf": b"",
 }
 

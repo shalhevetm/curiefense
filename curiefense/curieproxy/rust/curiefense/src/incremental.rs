@@ -163,10 +163,12 @@ pub fn add_header(idata: IData, key: String, value: String) -> Result<IData, (Lo
         content: "Access denied".to_string(),
         extra_tags: None,
     };
+    let cfid = &dt.secpol.content_filter_profile.id;
     if dt.secpol.content_filter_active {
         let hdrs = &dt.secpol.content_filter_profile.sections.headers;
         if dt.headers.len() >= hdrs.max_count {
-            let br = BlockReason::too_many_entries(SectionIdx::Headers, dt.headers.len() + 1, hdrs.max_count);
+            let br =
+                BlockReason::too_many_entries(cfid.clone(), SectionIdx::Headers, dt.headers.len() + 1, hdrs.max_count);
             return Err(early_block(dt, cf_block(), br));
         }
         let kl = key.to_lowercase();
@@ -174,13 +176,13 @@ pub fn add_header(idata: IData, key: String, value: String) -> Result<IData, (Lo
             if let Ok(content_length) = value.parse::<usize>() {
                 let max_size = dt.secpol.content_filter_profile.max_body_size;
                 if content_length > max_size {
-                    let (a, br) = body_too_large(max_size, content_length);
+                    let (a, br) = body_too_large(cfid.clone(), max_size, content_length);
                     return Err(early_block(dt, a, br));
                 }
             }
         }
         if value.len() > hdrs.max_length {
-            let br = BlockReason::entry_too_large(SectionIdx::Headers, &kl, value.len(), hdrs.max_length);
+            let br = BlockReason::entry_too_large(cfid.clone(), SectionIdx::Headers, &kl, value.len(), hdrs.max_length);
             return Err(early_block(dt, cf_block(), br));
         }
         dt.headers.insert(kl, value);
@@ -202,7 +204,7 @@ pub fn add_body(idata: IData, new_body: &[u8]) -> Result<IData, (Logs, AnalyzeRe
     let new_size = cur_body_size + new_body.len();
     let max_size = dt.secpol.content_filter_profile.max_body_size;
     if dt.secpol.content_filter_active && new_size > max_size {
-        let (a, br) = body_too_large(max_size, new_size);
+        let (a, br) = body_too_large(dt.secpol.content_filter_profile.id.clone(), max_size, new_size);
         return Err(early_block(dt, a, br));
     }
 
@@ -235,7 +237,7 @@ pub async fn finalize<GH: Grasshopper>(
         .unwrap_or(CfRulesArg::Global);
     let reqinfo = map_request(
         &mut logs,
-        secpolicy,
+        secpolicy.clone(),
         idata.container_name,
         &rawrequest,
         Some(idata.start),
@@ -276,7 +278,7 @@ mod test {
         hostmap::{HostMap, PolicyId},
         raw::AclProfile,
     };
-    use std::time::SystemTime;
+    use std::collections::HashSet;
 
     use super::*;
 
@@ -308,12 +310,16 @@ mod test {
                     limits: Vec::new(),
                 })),
             }),
-            last_mod: SystemTime::now(),
             container_name: None,
             flows: HashMap::new(),
             content_filter_profiles: HashMap::new(),
             logs: Logs::default(),
             virtual_tags: Arc::new(HashMap::new()),
+            actions: HashMap::new(),
+            limits: HashMap::new(),
+            global_limits: Vec::new(),
+            inactive_limits: HashSet::new(),
+            acls: HashMap::new(),
         }
     }
 
