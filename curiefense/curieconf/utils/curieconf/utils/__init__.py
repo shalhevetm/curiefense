@@ -25,9 +25,9 @@ BLOBS_PATH = {
     "geolite2city": "config/maxmind/GeoLite2-City.mmdb",
     "ipinfo_asn": "config/ipinfo/IPInfo-ASN.mmdb",
     "ipinfo_carrier": "config/ipinfo/IPInfo-Carrier.mmdb",
-    "ipinfo_standard_company": "IPInfo-Standard-Company.mmdb",
-    "ipinfo_standard_location": "IPInfo-Standard-Location.mmdb",
-    "ipinfo_standard_privacy": "IPInfo-Standard-Privacy.mmdb",
+    "ipinfo_standard_company": "config/ipinfo/IPInfo-Standard-Company.mmdb",
+    "ipinfo_standard_location": "config/ipinfo/IPInfo-Standard-Location.mmdb",
+    "ipinfo_standard_privacy": "config/ipinfo/IPInfo-Standard-Privacy.mmdb",
     "customconf": "config/customconf.tar.gz",
 }
 
