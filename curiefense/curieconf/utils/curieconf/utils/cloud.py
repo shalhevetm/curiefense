@@ -146,3 +146,19 @@ def export(conf, url, prnt=None):
     upload_manifest(
         manifest, bucket, root, None, prnt=prnt
     )  # no config name; always upload to manifest.json
+
+
+def export_ipinfo(ipinfo_entry, prnt=None):
+    bucket, root = get_bucket(ipinfo_entry["url"])
+    ipinfo_bytes = utils.jblob2bytes(ipinfo_entry)
+    h = hash(ipinfo_bytes)
+    name = f"{ipinfo_entry['file_name']}-{h}"
+    if not bucket.exists(name):
+        iodata = io.BytesIO(ipinfo_bytes)
+        iodata.seek(0)
+        if prnt:
+            prnt("Uploading new version of [%s]" % ipinfo_entry['file_name'])
+            bucket.upload_blob(
+                iodata, name, meta_data={}, content_type="text/json"
+            )
+
