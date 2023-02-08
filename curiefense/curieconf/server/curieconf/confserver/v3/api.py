@@ -2,6 +2,8 @@ import datetime
 import typing
 from enum import Enum
 from typing import Optional, List, Union
+from curieconf import utils
+
 
 from fastapi import Request, HTTPException, APIRouter
 from pydantic import (
@@ -274,6 +276,12 @@ class BlobEntry(BaseModel):
 
 class BlobListEntry(BaseModel):
     name: Optional[StrictStr]
+
+class IPInfoEntry(BaseModel):
+    format: StrictStr
+    blob: anyTypeUnion
+    url: StrictStr
+    file_name: StrictStr
 
 
 class DocumentListEntry(BaseModel):
@@ -1108,3 +1116,14 @@ async def git_fetch_resource_put(giturl: GitUrl, request: Request):
     else:
         msg = "ok"
     return {"ok": ok, "status": msg}
+
+
+
+
+@router.put("/tools/ipinfopush/", tags=[Tags.tools])
+async def push_ipinfo_file_to_bucket(request: Request):
+    """upload ipinfo blob straight to the planet's bucket"""
+    ipinfo_entry = await request.json()
+    cloud.export_ipinfo(ipinfo_entry)
+
+
