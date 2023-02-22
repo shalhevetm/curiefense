@@ -244,7 +244,8 @@ def export_t3():
                 five_sec_json = take_earliest(five_sec_json)
                 if ENABLE_EXPORT_T2:
                     export_t2(five_sec_json)
-                    
+
+                # Clear all gauges so they do not drag previous values into new intervals
                 for key in t3_counters:
                     if isinstance(t3_counters[key], Gauge):
                         t3_counters[key].clear()
