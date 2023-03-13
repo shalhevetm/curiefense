@@ -56,7 +56,7 @@ class TimestampedGauge(Gauge):
                     self._name + suffix, 
                     labels, 
                     float("NaN"), 
-                    self._timestamp + 59.999, 
+                    self._timestamp + 59.999,
                     exemplar,
                 )
         return [metrics]
