@@ -53,11 +53,11 @@ class TimestampedGauge(Gauge):
                     self._name + suffix, labels, value, self._timestamp, exemplar
                 )
                 metrics.add_sample(
-                    self._name + suffix, 
-                    labels, 
-                    float("NaN"), 
+                    self._name + suffix,
+                    labels,
+                    float("NaN"),
                     self._timestamp + 59.999,
-                    exemplar,
+                    exemplar
                 )
         return [metrics]
 
