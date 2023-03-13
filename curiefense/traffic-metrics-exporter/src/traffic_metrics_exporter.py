@@ -13,10 +13,7 @@ from jsonpath_ng import parse
 from dateutil.parser import isoparse
 from datetime import datetime, timedelta, timezone
 from prometheus_client import start_http_server, REGISTRY, Gauge, Metric
-
-from typing import (
-    Iterable
-)
+from typing import Iterable
 
 from utils.prometheus_counters_dict import (
     REGULAR,
@@ -48,10 +45,20 @@ class TimestampedGauge(Gauge):
         metrics = self._get_metric()
         for suffix, labels, value, timestamp, exemplar in self._samples():
             if self._timestamp is None:
-                 metrics.add_sample(self._name + suffix, labels, value, timestamp, exemplar)
+                metrics.add_sample(
+                    self._name + suffix, labels, value, timestamp, exemplar
+                )
             else:
-                metrics.add_sample(self._name + suffix, labels, value, self._timestamp , exemplar)
-                metrics.add_sample(self._name + suffix, labels, float("NaN"), self._timestamp + 59.999, exemplar)
+                metrics.add_sample(
+                    self._name + suffix, labels, value, self._timestamp , exemplar
+                )
+                metrics.add_sample(
+                    self._name + suffix, 
+                    labels, 
+                    float("NaN"), 
+                    self._timestamp + 59.999, 
+                    exemplar
+                )
         return [metrics]
 
 
@@ -93,7 +100,9 @@ for name, counter_label in counters_format.items():
     type = counter_label["type"]
     label = counter_label.get("label")
     more_labels = [label] if label else []
-    t3_counters[counter_name] = TimestampedGauge(counter_name, "", base_labels + more_labels)
+    t3_counters[counter_name] = TimestampedGauge(
+        counter_name, "", base_labels + more_labels
+    )
 
 q = Queue()
 
@@ -210,7 +219,6 @@ def choose_func(counter_type):
     }.get(counter_type)
 
 
-
 def update_t3_counters(t2_dict, acc_avg):
     proxy = t2_dict.get("proxy", "")
     app = t2_dict.get("secpolid", "")
@@ -224,7 +232,11 @@ def update_t3_counters(t2_dict, acc_avg):
         counter_name = name_changes.get(counter_name, counter_name)
         valid_name = switch_hyphens(counter_name)
         counter_type = _get_counter_type(valid_name)
-        epochtst = float(datetime.timestamp(isoparse(t2_dict.get("timestamp", "")).replace(tzinfo=timezone.utc))) 
+        epochtst = float(
+            datetime.timestamp(
+                isoparse(t2_dict.get("timestamp", "")).replace(tzinfo=timezone.utc)
+            )
+        ) 
         if not counter_type:
             continue
         counter = t3_counters[valid_name]
@@ -277,7 +289,9 @@ def export_t3():
 
                 # Clear all gauges so they do not drag previous values into new intervals
                 for key in t3_counters:
-                    if isinstance(t3_counters[key], Gauge) or isinstance(t3_counters[key], TimestampedGauge):
+                    if isinstance(t3_counters[key], Gauge) or isinstance(
+                        t3_counters[key], TimestampedGauge
+                    ):
                         t3_counters[key].clear()
                         t3_counters[key].clear_timestamp()
 
