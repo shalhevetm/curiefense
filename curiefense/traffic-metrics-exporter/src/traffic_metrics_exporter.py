@@ -50,7 +50,7 @@ class TimestampedGauge(Gauge):
                 )
             else:
                 metrics.add_sample(
-                    self._name + suffix, labels, value, self._timestamp , exemplar
+                    self._name + suffix, labels, value, self._timestamp, exemplar
                 )
                 metrics.add_sample(
                     self._name + suffix, 
@@ -236,7 +236,7 @@ def update_t3_counters(t2_dict, acc_avg):
             datetime.timestamp(
                 isoparse(t2_dict.get("timestamp", "")).replace(tzinfo=timezone.utc)
             )
-        ) 
+        )
         if not counter_type:
             continue
         counter = t3_counters[valid_name]
