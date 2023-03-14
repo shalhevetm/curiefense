@@ -1,30 +1,25 @@
 #! /usr/bin/env python
-import hashlib
-import logging
-import os
-import sys
 import argparse
-import traceback
+import base64
+import hashlib
 import io
 import json
+import logging
+import os
 import subprocess
+import sys
+import traceback
 from enum import Enum
 from pathlib import Path
-from google.cloud import storage
-import base64
 from typing import List, Optional
 
-
+import simple_rest_client.exceptions
 import typer
 import yaml
-
-import simple_rest_client.exceptions
-
-
-from curieconf import confclient
-from curieconf import utils
+from cloudstorage.exceptions import CloudStorageError, NotFoundError
+from curieconf import confclient, utils
 from curieconf.utils import cloud
-from cloudstorage.exceptions import NotFoundError, CloudStorageError
+from google.cloud import storage
 
 state = argparse.Namespace()
 
