@@ -77,7 +77,7 @@ jobs:
             pushd deploy/compose
             docker-compose logs
 
-      - name: Publish Unit Test Results
+      - name: Publish
         id: publish
         # TODO implement https://github.com/EnricoMi/publish-unit-test-result-action#support-fork-repositories
         uses: EnricoMi/publish-unit-test-result-action@ea8720de4a2e723f8204d44fc0178744cf401c1a
@@ -96,12 +96,12 @@ jobs:
           ( github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository )
         
       - name: Cool off if Publish fails
-        if: steps.publish.outcome != 'success'
+        if: steps.Publish.outcome != 'success'
         run: |
             sleep 2m
             
       - name: Rerun Publish Unit Test Results if failed
-        if: steps.publish.outcome != 'success'
+        if: steps.Publish.outcome != 'success'
         id: publish2
         # TODO implement https://github.com/EnricoMi/publish-unit-test-result-action#support-fork-repositories
         uses: EnricoMi/publish-unit-test-result-action@ea8720de4a2e723f8204d44fc0178744cf401c1a
