@@ -1,6 +1,7 @@
 name: Run e2e tests on docker-compose
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - "deploy/**"
