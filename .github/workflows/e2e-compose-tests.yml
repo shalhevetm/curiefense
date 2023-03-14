@@ -102,6 +102,7 @@ jobs:
         
       - name: Rerun Publish if fails
         if: steps.publish.outputs.failure == 'true'
+        uses: actions/checkout@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run: |
