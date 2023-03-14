@@ -78,6 +78,7 @@ jobs:
             docker-compose logs
 
       - name: Publish Unit Test Results
+        id: publish
         # TODO implement https://github.com/EnricoMi/publish-unit-test-result-action#support-fork-repositories
         uses: EnricoMi/publish-unit-test-result-action@ea8720de4a2e723f8204d44fc0178744cf401c1a
         with:
@@ -93,7 +94,21 @@ jobs:
           always() &&
           github.event.sender.login != 'dependabot[bot]' &&
           ( github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository )
-
+          run: |
+            if [[ $(curl -s -o /dev/null -w "%{http_code}" https://api.github.com/) -eq 403 ]]; then
+            echo "::set-output name=failure::true"
+            fi
+        continue-on-error: true
+        
+      - name: Rerun Publish if fails
+        if: steps.publish.outputs.failure == 'true'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run: |
+            await github.actions.reRunWorkflow({
+            workflow_id: 'publish',
+            run_id: ${{ github.run_id }} });
+      
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v2
