@@ -1027,6 +1027,8 @@ async def key_resource_put(nsname: str, key: str, request: Request):
 @router.delete("/db/{nsname}/k/{key}/", tags=[Tags.db])
 async def key_resource_delete(nsname: str, key: str, request: Request):
     """Delete a key"""
+    if key == "publishinfo":
+        raise HTTPException(500, "publishinfo should not be deleted")
     return request.app.backend.key_delete(nsname, key, get_gitactor(request))
 
 
