@@ -935,9 +935,12 @@ async def ns_resource_get(nsname: str, request: Request):
 
 
 @router.post("/db/{nsname}/", tags=[Tags.db])
-async def ns_resource_post(nsname: str, db: DB, request: Request):
+async def ns_resource_post(nsname: str, request: Request):
     """Create a non-existing namespace from data"""
     _db = await request.json()
+    if nsname == "system" and set.intersection(set(_db.keys()),set(bootsrap_system_keys)) != set(bootsrap_system_keys):
+        raise HTTPException(500, f"system namespace must include {bootsrap_system_keys}")
+
     try:
         return request.app.backend.ns_create(nsname, _db, get_gitactor(request))
     except Exception:
@@ -945,15 +948,19 @@ async def ns_resource_post(nsname: str, db: DB, request: Request):
 
 
 @router.put("/db/{nsname}/", tags=[Tags.db])
-async def ns_resource_put(nsname: str, db: DB, request: Request):
+async def ns_resource_put(nsname: str, request: Request):
     """Merge data into a namespace"""
     _db = await request.json()
+    if nsname == "system" and set.intersection(set(_db.keys()),set(bootsrap_system_keys)) != set(bootsrap_system_keys):
+        raise HTTPException(500, f"system namespace must include {bootsrap_system_keys}")
 
     return request.app.backend.ns_update(nsname, _db, get_gitactor(request))
 
 
 @router.delete("/db/{nsname}/", tags=[Tags.db])
-async def ns_resource_put(nsname: str, request: Request):
+async def ns_resource_delete(nsname: str, request: Request):
+    if nsname == "system":
+        raise HTTPException(500, "the system namespace cannot be deleted")
     """Delete an existing namespace"""
     try:
         return request.app.backend.ns_delete(nsname, get_gitactor(request))
