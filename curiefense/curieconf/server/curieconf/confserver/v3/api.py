@@ -911,6 +911,7 @@ async def entry_version_resource_get(
 ### Database ###
 ################
 
+bootsrap_system_keys = ["publishinfo", "tags", "links", "dashboardsinfo", "user"]
 
 @router.get("/db/", tags=[Tags.db])
 async def db_resource_get(request: Request):
@@ -1027,8 +1028,8 @@ async def key_resource_put(nsname: str, key: str, request: Request):
 @router.delete("/db/{nsname}/k/{key}/", tags=[Tags.db])
 async def key_resource_delete(nsname: str, key: str, request: Request):
     """Delete a key"""
-    if key == "publishinfo":
-        raise HTTPException(500, "publishinfo should not be deleted")
+    if nsname == "system" and key in bootsrap_system_keys:
+        raise HTTPException(500, f"{key} should not be deleted from system namespace")
     return request.app.backend.key_delete(nsname, key, get_gitactor(request))
 
 
