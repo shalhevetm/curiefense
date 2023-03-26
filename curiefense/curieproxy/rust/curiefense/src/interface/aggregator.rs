@@ -851,7 +851,7 @@ fn serialize_entry(sample: i64, hdr: &AggregationKey, counters: &AggregatedCount
     let timestamp: chrono::DateTime<chrono::Utc> = chrono::DateTime::from_utc(naive_dt, chrono::Utc);
     let timestamp_tr_minute: chrono::DateTime<chrono::Utc> = timestamp
         .duration_trunc(chrono::Duration::minutes(1))
-        .unwrap_or_else(timestamp);
+        .unwrap_or_else(|_| Value::String("??".into()));
 
     let mut content = serde_json::Map::new();
 
