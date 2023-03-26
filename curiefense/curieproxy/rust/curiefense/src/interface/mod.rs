@@ -10,7 +10,7 @@ use crate::utils::{selector, GeoIp, RequestInfo, Selected};
 use serde::ser::{SerializeMap, SerializeSeq};
 use serde::{Deserialize, Serialize, Serializer};
 use std::collections::{HashMap, HashSet};
-use chrono::DurationRound::{duration_trunc}
+use chrono::DurationRound::{duration_trunc};
 
 pub use self::block_reasons::*;
 pub use self::stats::*;
