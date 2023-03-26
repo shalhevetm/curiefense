@@ -234,8 +234,8 @@ pub fn jsonlog_rinfo(
     let mut ser = serde_json::Serializer::new(&mut outbuffer);
     let mut map_ser = ser.serialize_map(None)?;
     map_ser.serialize_entry("timestamp", now)?;
-    let test: chrono::DateTime<chrono::Utc> = chrono::Utc::now().duration_trunc(chrono::Duration::minutes(1)).unwrap();
-    map_ser.serialize_entry("timestamp_min", &&now.duration_trunc(chrono::Duration::minutes(1))?)?;
+    let test: chrono::DateTime<chrono::Utc> = chrono::Utc::now().duration_trunc(chrono::Duration::minutes(1)).unwrap_or_else(chrono::Utc::now());
+    // map_ser.serialize_entry("timestamp_min", &&now.duration_trunc(chrono::Duration::minutes(1))?)?;
     //     map_ser.serialize_entry("@timestamp", now)?;
     map_ser.serialize_entry("curiesession", &rinfo.session)?;
     map_ser.serialize_entry("curiesession_ids", &NameValue::new(&rinfo.session_ids))?;
