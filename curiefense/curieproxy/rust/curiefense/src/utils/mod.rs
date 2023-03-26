@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc, Duration, DurationRound};
+use chrono::{DateTime, Duration, DurationRound, Utc};
 use ipnet::IpNet;
 use itertools::Itertools;
 use maxminddb::geoip2::country;
