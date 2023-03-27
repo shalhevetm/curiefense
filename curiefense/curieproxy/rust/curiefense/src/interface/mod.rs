@@ -244,7 +244,7 @@ pub fn jsonlog_rinfo(
     //     .duration_trunc(chrono::Duration::minutes(1))
     //     .unwrap();
     // map_ser.serialize_entry("timestamp_min", now.duration_trunc(chrono::Duration::minutes(1)).unwrap())?;
-        // map_ser.serialize_entry("@timestamp", now)?;
+    // map_ser.serialize_entry("@timestamp", now)?;
     map_ser.serialize_entry("curiesession", &rinfo.session)?;
     map_ser.serialize_entry("curiesession_ids", &NameValue::new(&rinfo.session_ids))?;
     let request_id = proxy.get("request_id").or(rinfo.rinfo.meta.requestid.as_ref());
