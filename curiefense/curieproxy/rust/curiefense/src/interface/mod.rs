@@ -235,10 +235,10 @@ pub fn jsonlog_rinfo(
     let mut ser = serde_json::Serializer::new(&mut outbuffer);
     let mut map_ser = ser.serialize_map(None)?;
     map_ser.serialize_entry("timestamp", now)?;
-    let test: chrono::DateTime<chrono::Utc> = chrono::Utc::now().duration_trunc(chrono::Duration::minutes(1)).unwrap();
+    // let test: chrono::DateTime<chrono::Utc> = chrono::Utc::now().duration_trunc(chrono::Duration::minutes(1)).unwrap();
     map_ser.serialize_entry(
         "timestamp_min",
-        now.duration_trunc(chrono::Duration::minutes(1)).unwrap(),
+        &now.duration_trunc(chrono::Duration::minutes(1)).unwrap(),
     )?;
     // let test: chrono::DateTime<chrono::Utc> = chrono::Utc::now()
     //     .duration_trunc(chrono::Duration::minutes(1))
