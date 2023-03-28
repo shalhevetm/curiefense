@@ -9,7 +9,7 @@ from jsonschema import validate
 from pathlib import Path
 from enum import Enum
 from typing import Optional, List, Union
-from fastapi import Request, HTTPException, APIRouter, Header
+from fastapi import Request, HTTPException, APIRouter, Header, Depends
 from pydantic import BaseModel, Field, StrictStr, StrictBool, StrictInt, Extra, HttpUrl
 
 from curieconf.utils import cloud
@@ -912,6 +912,7 @@ async def entry_version_resource_get(
 ################
 
 bootsrap_system_keys = ["publishinfo", "tags", "links", "dashboardsinfo", "user"]
+preserved_namespaces = ["system"]
 
 @router.get("/db/", tags=[Tags.db])
 async def db_resource_get(request: Request):
@@ -934,32 +935,33 @@ async def ns_resource_get(nsname: str, request: Request):
         raise HTTPException(404, "namespace [%s] does not exist" % nsname)
 
 
-@router.post("/db/{nsname}/", tags=[Tags.db])
+async def verify_namespace(nsname: str, request: Request):
+    _db = await request.json()
+    if nsname in preserved_namespaces and set.intersection(set(_db.keys()), set(bootsrap_system_keys)) != set(bootsrap_system_keys):
+        raise HTTPException(500, f"{nsname} namespace must include {bootsrap_system_keys}")
+
+
+@router.post("/db/{nsname}/", tags=[Tags.db], dependencies=[Depends(verify_namespace)])
 async def ns_resource_post(nsname: str, request: Request):
     """Create a non-existing namespace from data"""
     _db = await request.json()
-    if nsname == "system" and set.intersection(set(_db.keys()),set(bootsrap_system_keys)) != set(bootsrap_system_keys):
-        raise HTTPException(500, f"system namespace must include {bootsrap_system_keys}")
-
     try:
         return request.app.backend.ns_create(nsname, _db, get_gitactor(request))
     except Exception:
         raise HTTPException(409, "namespace [%s] already exists" % nsname)
 
 
-@router.put("/db/{nsname}/", tags=[Tags.db])
+@router.put("/db/{nsname}/", tags=[Tags.db], dependencies=[Depends(verify_namespace)])
 async def ns_resource_put(nsname: str, request: Request):
     """Merge data into a namespace"""
     _db = await request.json()
-    if nsname == "system" and set.intersection(set(_db.keys()),set(bootsrap_system_keys)) != set(bootsrap_system_keys):
-        raise HTTPException(500, f"system namespace must include {bootsrap_system_keys}")
 
     return request.app.backend.ns_update(nsname, _db, get_gitactor(request))
 
 
 @router.delete("/db/{nsname}/", tags=[Tags.db])
 async def ns_resource_delete(nsname: str, request: Request):
-    if nsname == "system":
+    if nsname in preserved_namespaces:
         raise HTTPException(500, "the system namespace cannot be deleted")
     """Delete an existing namespace"""
     try:
@@ -1035,8 +1037,8 @@ async def key_resource_put(nsname: str, key: str, request: Request):
 @router.delete("/db/{nsname}/k/{key}/", tags=[Tags.db])
 async def key_resource_delete(nsname: str, key: str, request: Request):
     """Delete a key"""
-    if nsname == "system" and key in bootsrap_system_keys:
-        raise HTTPException(500, f"{key} should not be deleted from system namespace")
+    if nsname in preserved_namespaces and key in bootsrap_system_keys:
+        raise HTTPException(500, f"{key} should not be deleted from {nsname} namespace")
     return request.app.backend.key_delete(nsname, key, get_gitactor(request))
 
 
