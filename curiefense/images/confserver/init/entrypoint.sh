@@ -11,8 +11,8 @@ if [ "$INIT_GIT_ON_STARTUP" = "yes" ]; then
     if /bootstrap/bootstrap_config.sh; then
       break
     fi
-    echo "error - entrypoint.sh bootstrap_config failed, attempt number $i, trying again"
-
+    echo "error - entrypoint.sh bootstrap_config failed, attempt number $i, trying again in 5 seconds"
+    sleep 5
   done
 fi
 
