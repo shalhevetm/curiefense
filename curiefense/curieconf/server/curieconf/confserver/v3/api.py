@@ -914,6 +914,7 @@ async def entry_version_resource_get(
 bootsrap_system_keys = ["publishinfo", "tags", "links", "dashboardsinfo", "user"]
 preserved_namespaces = ["system"]
 
+
 @router.get("/db/", tags=[Tags.db])
 async def db_resource_get(request: Request):
     """Get the list of existing namespaces"""
@@ -937,8 +938,12 @@ async def ns_resource_get(nsname: str, request: Request):
 
 async def verify_namespace(nsname: str, request: Request):
     _db = await request.json()
-    if nsname in preserved_namespaces and set.intersection(set(_db.keys()), set(bootsrap_system_keys)) != set(bootsrap_system_keys):
-        raise HTTPException(500, f"{nsname} namespace must include {bootsrap_system_keys}")
+    if nsname in preserved_namespaces and set.intersection(
+        set(_db.keys()), set(bootsrap_system_keys)
+    ) != set(bootsrap_system_keys):
+        raise HTTPException(
+            500, f"{nsname} namespace must include {bootsrap_system_keys}"
+        )
 
 
 @router.post("/db/{nsname}/", tags=[Tags.db], dependencies=[Depends(verify_namespace)])
