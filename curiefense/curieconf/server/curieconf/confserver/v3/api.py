@@ -912,7 +912,7 @@ async def entry_version_resource_get(
 ################
 
 bootsrap_system_keys = ["publishinfo", "tags", "links", "dashboardsinfo", "user"]
-preserved_namespaces = ["system"]
+preserved_namespace = "system"
 
 
 @router.get("/db/", tags=[Tags.db])
@@ -938,11 +938,11 @@ async def ns_resource_get(nsname: str, request: Request):
 
 async def verify_namespace(nsname: str, request: Request):
     _db = await request.json()
-    if nsname in preserved_namespaces and set.intersection(
+    if nsname == preserved_namespace and set.intersection(
         set(_db.keys()), set(bootsrap_system_keys)
     ) != set(bootsrap_system_keys):
         raise HTTPException(
-            500, f"{nsname} namespace must include {bootsrap_system_keys}"
+            500, f"'{nsname}' namespace must include {bootsrap_system_keys}"
         )
 
 
@@ -966,8 +966,8 @@ async def ns_resource_put(nsname: str, request: Request):
 
 @router.delete("/db/{nsname}/", tags=[Tags.db])
 async def ns_resource_delete(nsname: str, request: Request):
-    if nsname in preserved_namespaces:
-        raise HTTPException(500, "the system namespace cannot be deleted")
+    if nsname == preserved_namespace:
+        raise HTTPException(403, f"the '{nsname}' namespace cannot be deleted")
     """Delete an existing namespace"""
     try:
         return request.app.backend.ns_delete(nsname, get_gitactor(request))
@@ -1042,8 +1042,8 @@ async def key_resource_put(nsname: str, key: str, request: Request):
 @router.delete("/db/{nsname}/k/{key}/", tags=[Tags.db])
 async def key_resource_delete(nsname: str, key: str, request: Request):
     """Delete a key"""
-    if nsname in preserved_namespaces and key in bootsrap_system_keys:
-        raise HTTPException(500, f"{key} should not be deleted from {nsname} namespace")
+    if nsname == preserved_namespace and key in bootsrap_system_keys:
+        raise HTTPException(403, f"'{key}' should not be deleted from '{nsname}' namespace")
     return request.app.backend.key_delete(nsname, key, get_gitactor(request))
 
 
