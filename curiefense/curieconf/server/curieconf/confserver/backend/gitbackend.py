@@ -13,7 +13,8 @@ import fasteners
 from typing import Dict, List
 import jsonpath_ng
 import pathlib
-
+import os
+import shutil
 
 CURIE_AUTHOR = git.Actor("Curiefense API", "curiefense@reblaze.com")
 
@@ -65,6 +66,21 @@ def get_repo(pth):
         commit(repo.index, "Initial empty config", actor=CURIE_AUTHOR)
         repo.create_head(BRANCH_BASE)
     return repo
+
+
+def create_zip_archive(folder_path, zip_filename):
+    # Ensure the folder exists
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(f"The folder '{folder_path}' does not exist.")
+
+    # Ensure the folder is actually a folder and not a file
+    if not os.path.isdir(folder_path):
+        raise ValueError(f"The path '{folder_path}' is not a folder.")
+
+    # Create a ZIP archive
+    shutil.make_archive(zip_filename, 'zip', folder_path)
+    print(f"ZIP archive '{zip_filename}.zip' created successfully.")
+    return f"{zip_filename}.zip"
 
 
 class ThreadAndProcessLock(object):
