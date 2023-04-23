@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, StrictStr, StrictBool, StrictInt, Extra, 
 
 from curieconf.utils import cloud
 from curieconf.server.app.const import git_conf_location
-from curieconf.server.curieconf.confserver.backend.gitbackend import create_zip_archive
+from curieconf.server.curieconf.confserver.backend.gitbackend import create_zip_archive_for_folder
 
 # monkey patch to force RestPlus to use Draft3 validator to benefit from "any" json type
 jsonschema.Draft4Validator = jsonschema.Draft3Validator
@@ -1116,18 +1116,35 @@ async def git_fetch_resource_put(giturl: GitUrl, request: Request):
 
 
 @router.get("/tools/backup/create/{backup_file_name}", tags=[Tags.tools])
-async def backup_create(request: Request, backup_file_name: str):
+async def backup_create(request: Request = None, backup_file_name: str = "/cf-persistent-config/backup"):
     """Create backup for database"""
 
     ok = True
     status = []
 
     try:
-        current_backup_filename = create_zip_archive(git_conf_location, backup_file_name)
+        current_backup_filename = create_zip_archive_for_folder(git_conf_location, backup_file_name)
+
         status.append("Backup created")
+
+        buckets = await request.json()
+        if type(buckets) is not list:
+            raise HTTPException(400, "body must be a list")
+
+        for bucket in buckets:
+            logs = []
+            try:
+                cloud.upload_file(current_backup_filename, bucket["url"], prnt=lambda x: logs.append(x))
+            except Exception as e:
+                ok = False
+                s = False
+                msg = repr(e)
+            else:
+                s = True
+                msg = "ok"
+            status.append({"name": bucket["name"], "ok": s, "logs": logs, "message": msg})
 
     except Exception as e:
         raise HTTPException(500, f"Something went wrong. ${e}")
 
     return {"ok": ok, "status": status}
-
