@@ -13,7 +13,7 @@ from fastapi import Request, HTTPException, APIRouter, Header
 from pydantic import BaseModel, Field, StrictStr, StrictBool, StrictInt, Extra, HttpUrl
 
 from curieconf.utils import cloud
-from curieconf.server.app.const import git_conf_location, backup_file_name
+from curieconf.server.app.const import git_conf_location
 from curieconf.server.curieconf.confserver.backend.gitbackend import create_zip_archive
 
 # monkey patch to force RestPlus to use Draft3 validator to benefit from "any" json type
@@ -1115,8 +1115,8 @@ async def git_fetch_resource_put(giturl: GitUrl, request: Request):
     return {"ok": ok, "status": msg}
 
 
-@router.get("/tools/backup/create", tags=[Tags.tools])
-async def backup_create(request: Request, buckets: List[Bucket]):
+@router.get("/tools/backup/create/{backup_file_name}", tags=[Tags.tools])
+async def backup_create(request: Request, backup_file_name: str):
     """Create backup for database"""
 
     ok = True
@@ -1125,12 +1125,9 @@ async def backup_create(request: Request, buckets: List[Bucket]):
     try:
         current_backup_filename = create_zip_archive(git_conf_location, backup_file_name)
         status.append("Backup created")
-        buckets = await request.json()
 
     except Exception as e:
-        print(e)
-        ok = False
-        status.append(f"Something went wrong. ${e}")
+        raise HTTPException(500, f"Something went wrong. ${e}")
 
     return {"ok": ok, "status": status}
 

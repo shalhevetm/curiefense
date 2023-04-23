@@ -68,7 +68,9 @@ def get_repo(pth):
     return repo
 
 
-def create_zip_archive(folder_path, zip_filename):
+def create_zip_archive_for_folder(folder_path, zip_filename):
+    start_time = time.time()
+
     # Ensure the folder exists
     if not os.path.exists(folder_path):
         raise FileNotFoundError(f"The folder '{folder_path}' does not exist.")
@@ -79,7 +81,10 @@ def create_zip_archive(folder_path, zip_filename):
 
     # Create a ZIP archive
     shutil.make_archive(zip_filename, 'zip', folder_path)
-    print(f"ZIP archive '{zip_filename}.zip' created successfully.")
+
+    elapsed_time = time.time() - start_time
+
+    print(f"ZIP archive '{zip_filename}.zip' created successfully. Execution time: {elapsed_time:.2f} seconds")
     return f"{zip_filename}.zip"
 
 
