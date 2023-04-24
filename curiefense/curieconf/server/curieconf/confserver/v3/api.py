@@ -430,7 +430,6 @@ class Tags(Enum):
     congifs = "configs"
     db = "db"
     tools = "tools"
-    backup = "backup"
 
 
 ################
