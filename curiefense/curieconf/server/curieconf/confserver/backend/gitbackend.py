@@ -110,7 +110,7 @@ class GitBackend(CurieBackend):
         self.parsed_url = urllib.parse.urlparse(url)
         if self.parsed_url.netloc != "" or self.parsed_url.scheme != "git":
             raise CurieGitBackendException(
-                "Bad URL format [%s]. (eg: git:///path/to/repo)"
+                "Bad URL format [%s]. (eg: git:///path/to/repo)", self.parsed_url
             )
         repopath = self.parsed_url.path
         self.repo = get_repo(repopath)

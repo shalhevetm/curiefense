@@ -3,8 +3,7 @@ from curieconf.confserver.backend import Backends
 
 import os
 
-git_conf_location = "/cf-persistent-config/confdb"
-app.backend = Backends.get_backend(app, f"git://${git_conf_location}")
+app.backend = Backends.get_backend(app, "git:///cf-persistent-config/confdb")
 options = {}
 val = os.environ.get("CURIECONF_TRUSTED_USERNAME_HEADER", None)
 if val:
