@@ -13,7 +13,6 @@ from fastapi import Request, HTTPException, APIRouter, Header
 from pydantic import BaseModel, Field, StrictStr, StrictBool, StrictInt, Extra, HttpUrl
 
 from curieconf.utils import cloud
-from curieconf.server.app.const import git_conf_location
 from curieconf.server.curieconf.confserver.backend.gitbackend import create_zip_archive_for_folder
 
 # monkey patch to force RestPlus to use Draft3 validator to benefit from "any" json type
@@ -1121,7 +1120,7 @@ async def backup_create(request: Request = None, backup_file_name: str = "/cf-pe
 
     ok = True
     status = []
-
+    git_conf_location = "/cf-persistent-config/confdb"
     try:
         current_backup_filename = create_zip_archive_for_folder(git_conf_location, backup_file_name)
 
