@@ -13,7 +13,7 @@ from fastapi import Request, HTTPException, APIRouter, Header
 from pydantic import BaseModel, Field, StrictStr, StrictBool, StrictInt, Extra, HttpUrl
 
 from curieconf.utils import cloud
-from curieconf.server.curieconf.confserver.backend.gitbackend import create_zip_archive_for_folder
+from curieconf.confserver.backend.gitbackend import create_zip_archive_for_folder
 
 # monkey patch to force RestPlus to use Draft3 validator to benefit from "any" json type
 jsonschema.Draft4Validator = jsonschema.Draft3Validator
