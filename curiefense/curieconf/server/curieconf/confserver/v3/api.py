@@ -11,6 +11,7 @@ from enum import Enum
 from typing import Optional, List, Union
 from fastapi import Request, HTTPException, APIRouter, Header
 from pydantic import BaseModel, Field, StrictStr, StrictBool, StrictInt, Extra, HttpUrl
+from urllib.parse import unquote
 
 from curieconf.utils import cloud
 from curieconf.confserver.backend.gitbackend import create_zip_archive_for_folder
@@ -1113,9 +1114,16 @@ async def git_fetch_resource_put(giturl: GitUrl, request: Request):
     return {"ok": ok, "status": msg}
 
 
-@router.get("/tools/backup/create/{backup_file_name}", tags=[Tags.tools])
-async def backup_create(request: Request = None, backup_file_name: str = "/cf-persistent-config/backup"):
+@router.put("/tools/backup/create", tags=[Tags.tools])
+@router.put("/tools/backup/create/{backup_file_name}", tags=[Tags.tools])
+async def backup_create(
+        request: Request, buckets: List[Bucket], backup_file_name: str = "/cf-persistent-config/backup"
+):
     """Create backup for database"""
+
+    backup_file_name = unquote(backup_file_name)
+    if backup_file_name.endswith('.zip'):
+        backup_file_name = backup_file_name[:-4]
 
     ok = True
     status = []
@@ -1133,6 +1141,7 @@ async def backup_create(request: Request = None, backup_file_name: str = "/cf-pe
             logs = []
             try:
                 cloud.upload_file(current_backup_filename, bucket["url"], prnt=lambda x: logs.append(x))
+
             except Exception as e:
                 ok = False
                 s = False
@@ -1144,5 +1153,8 @@ async def backup_create(request: Request = None, backup_file_name: str = "/cf-pe
 
     except Exception as e:
         raise HTTPException(500, f"Something went wrong. ${e}")
+
+    os.remove(current_backup_filename)
+    status.append("Backup removed")
 
     return {"ok": ok, "status": status}
