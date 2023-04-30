@@ -68,31 +68,11 @@ def get_repo(pth):
     return repo
 
 
-def create_zip_archive_for_folder(folder_path, zip_filename):
-    start_time = time.time()
-
-    # Ensure the folder exists
-    if not os.path.exists(folder_path):
-        raise FileNotFoundError(f"The folder '{folder_path}' does not exist.")
-
-    # Ensure the folder is actually a folder and not a file
-    if not os.path.isdir(folder_path):
-        raise ValueError(f"The path '{folder_path}' is not a folder.")
-
-    # Create a ZIP archive
-    shutil.make_archive(zip_filename, 'zip', folder_path)
-
-    elapsed_time = time.time() - start_time
-
-    print(f"ZIP archive '{zip_filename}.zip' created successfully. Execution time: {elapsed_time:.2f} seconds")
-    return f"{zip_filename}.zip"
-
-
 class ThreadAndProcessLock(object):
     def __init__(self, lockfile):
         self._lockfile = lockfile
         self.tlock = threading.Lock()
-        self.flock = fasteners.InterProcessLock("/tmp/tmp_lock_file")
+        self.flock = fasteners.InterProcessLock(lockfile)
 
     def __enter__(self):
         self.tlock.__enter__()
@@ -112,10 +92,10 @@ class GitBackend(CurieBackend):
             raise CurieGitBackendException(
                 f"Bad URL format [${self.parsed_url}]. (eg: git:///path/to/repo)"
             )
-        repopath = self.parsed_url.path
-        self.repo = get_repo(repopath)
-        lockpath = os.path.join(repopath, ".curieconf_lock")
-        self.repo.lock = ThreadAndProcessLock(lockpath)
+        self.repo_path = self.parsed_url.path
+        self.repo = get_repo(self.repo_path)
+        lock_path = os.path.join(self.repo_path, ".curieconf_lock")
+        self.repo.lock = ThreadAndProcessLock(lock_path)
 
     ### Helpers
 
@@ -917,3 +897,21 @@ class GitBackend(CurieBackend):
                 "Deleting key [%s] in  namespace [%s]" % (key, nsname), actor=actor
             )
         return {"ok": True}
+
+    def create_zip_archive_for_folder(self, zip_filename):
+        start_time = time.time()
+
+        if zip_filename.endswith('.zip'):
+            zip_filename = zip_filename[:-4]
+
+        # Create a ZIP archive
+        with self.repo.lock:
+            # try to use gitpython for create archive, but it created archive with size 0Kb.
+            # Use here default way for create archive in Python
+            shutil.make_archive(zip_filename, 'zip', self.repo_path)
+
+        elapsed_time = time.time() - start_time
+
+        print(f"ZIP archive '{zip_filename}.zip' created successfully. Execution time: {elapsed_time:.2f} seconds")
+        return f"{zip_filename}.zip"
+

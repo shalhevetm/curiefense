@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field, StrictStr, StrictBool, StrictInt, Extra, 
 from urllib.parse import unquote
 
 from curieconf.utils import cloud
-from curieconf.confserver.backend.gitbackend import create_zip_archive_for_folder
 
 # monkey patch to force RestPlus to use Draft3 validator to benefit from "any" json type
 jsonschema.Draft4Validator = jsonschema.Draft3Validator
@@ -1122,15 +1121,11 @@ async def backup_create(
     """Create backup for database"""
 
     backup_file_name = unquote(backup_file_name)
-    if backup_file_name.endswith('.zip'):
-        backup_file_name = backup_file_name[:-4]
 
     ok = True
     status = []
-    git_conf_location = "/cf-persistent-config/confdb"
     try:
-        current_backup_filename = create_zip_archive_for_folder(git_conf_location, backup_file_name)
-
+        current_backup_filename = request.app.backend.create_zip_archive_for_folder(backup_file_name)
         status.append("Backup created")
 
         buckets = await request.json()
