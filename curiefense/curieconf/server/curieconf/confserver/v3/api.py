@@ -1116,11 +1116,12 @@ async def git_fetch_resource_put(giturl: GitUrl, request: Request):
 @router.put("/tools/backup/create", tags=[Tags.tools])
 @router.put("/tools/backup/create/{backup_file_name}", tags=[Tags.tools])
 async def backup_create(
-        request: Request, buckets: List[Bucket], backup_file_name: str = "/cf-persistent-config/backup"
+        request: Request, buckets: List[Bucket], backup_file_name: str = "backup"
 ):
     """Create backup for database"""
 
     backup_file_name = unquote(backup_file_name)
+    backup_file_name = "/cf-persistent-config/" + backup_file_name
 
     ok = True
     status = []
