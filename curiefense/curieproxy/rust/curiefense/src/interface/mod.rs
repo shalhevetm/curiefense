@@ -223,7 +223,6 @@ pub fn jsonlog_rinfo(
     proxy: HashMap<String, String>,
     now: &chrono::DateTime<chrono::Utc>,
 ) -> serde_json::Result<Vec<u8>> {
-    logs.warning("test log");
     let block_reason_desc = if dec.is_final() {
         BlockReason::block_reason_desc(&dec.reasons)
     } else {
