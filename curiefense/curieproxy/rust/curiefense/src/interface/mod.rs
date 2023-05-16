@@ -840,3 +840,4 @@ fn render_template(rinfo: &RequestInfo, tags: &Tags, template: &[TemplatePart<TV
     }
     out
 }
+
